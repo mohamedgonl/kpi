@@ -120,3 +120,31 @@ Vercel is the easiest platform to deploy Vite (React/Vanilla JS) applications gl
 
 ### Automatic Deployments
 Since your Vercel project is linked to your GitHub repository, **any time you run `git push` to your main branch, Vercel will automatically rebuild and deploy the latest changes** to your live URL.
+
+---
+
+## Deployment on Firebase Hosting (Automated via GitHub Actions)
+
+This project is configured to automatically deploy to Firebase Hosting whenever you push to the `main` branch.
+
+### 1. Setup GitHub Secrets
+To make the automated deployment work, you MUST add the following secrets to your GitHub repository (**Settings > Secrets and variables > Actions**):
+
+- `FIREBASE_SERVICE_ACCOUNT_KPI_DUN`: The JSON key for your Firebase Service Account.
+- `VITE_FIREBASE_API_KEY`: Your Firebase API Key.
+- `VITE_FIREBASE_AUTH_DOMAIN`: Your Firebase Auth Domain.
+- `VITE_FIREBASE_DATABASE_URL`: Your Firebase Database URL.
+- `VITE_FIREBASE_PROJECT_ID`: `kpi-dun`
+- `VITE_FIREBASE_STORAGE_BUCKET`: Your Firebase Storage Bucket.
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`: Your Firebase Messaging Sender ID.
+- `VITE_FIREBASE_APP_ID`: Your Firebase App ID.
+- `VITE_FIREBASE_MEASUREMENT_ID`: Your Firebase Measurement ID.
+
+### 2. How to get the Service Account Key?
+1. Go to the [Firebase Console](https://console.firebase.google.com/).
+2. Project Settings (gear icon) > **Service accounts**.
+3. Click **Generate new private key**.
+4. A JSON file will download. Copy the ENTIRE content of this file and paste it into the `FIREBASE_SERVICE_ACCOUNT_KPI_DUN` secret on GitHub.
+
+### 3. Automatic Deployments
+Once the secrets are set, every time you run `git push origin main`, GitHub will build and deploy your site automatically.
