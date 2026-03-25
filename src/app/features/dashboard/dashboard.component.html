@@ -1,0 +1,129 @@
+<div class="dashboard-header">
+  <h1 class="dashboard-title">📊 <span>Dashboard</span></h1>
+  <div class="date-picker-wrap">
+    <label>📅 Ngày:</label>
+    <input type="date" class="date-input" [(ngModel)]="currentDate" (ngModelChange)="loadData()" />
+  </div>
+</div>
+
+<!-- KPI Score Cards -->
+<div class="kpi-cards">
+  <div class="kpi-card quantity">
+    <div class="kpi-card-label">Số lượng (a)</div>
+    <div class="kpi-card-value">{{ kpi.a | number:'1.1-1' }}%</div>
+    <div class="kpi-card-sub">{{ kpi.completedTasks }}/{{ kpi.totalTasks }} hoàn thành</div>
+  </div>
+  <div class="kpi-card quality">
+    <div class="kpi-card-label">Chất lượng (b)</div>
+    <div class="kpi-card-value">{{ kpi.b | number:'1.1-1' }}%</div>
+    <div class="kpi-card-sub">Đánh giá chất lượng</div>
+  </div>
+  <div class="kpi-card progress-card">
+    <div class="kpi-card-label">Tiến độ (c)</div>
+    <div class="kpi-card-value">{{ kpi.c | number:'1.1-1' }}%</div>
+    <div class="kpi-card-sub">Đánh giá tiến độ</div>
+  </div>
+  <div class="kpi-card final">
+    <div class="kpi-card-label">KPI Final</div>
+    <div class="kpi-card-value">{{ kpi.kpi | number:'1.1-1' }}%</div>
+    <div class="kpi-card-sub">(a + b + c) ÷ 3</div>
+  </div>
+</div>
+
+<!-- Excel Export Section -->
+<div class="export-section">
+  <h2 class="section-title">📥 Xuất dữ liệu Excel</h2>
+  <div class="export-btn-grid">
+    <button class="btn btn-export" (click)="openExportModal('daily')">📅 Theo ngày</button>
+    <button class="btn btn-export" (click)="openExportModal('weekly')">📆 Theo tuần</button>
+    <button class="btn btn-export" (click)="openExportModal('monthly')">🗓️ Theo tháng</button>
+    <button class="btn btn-export" (click)="openExportModal('quarterly')">📊 Theo quý</button>
+    <button class="btn btn-export" (click)="openExportModal('halfyear')">📈 6 tháng</button>
+    <button class="btn btn-export" (click)="openExportModal('yearly')">🗂️ 1 năm</button>
+  </div>
+</div>
+
+<!-- Add Task Button -->
+<div class="add-task-section" *ngIf="canEdit">
+  <h2 class="section-title">➕ Thêm công việc</h2>
+  <div class="work-group-grid">
+    <button *ngFor="let g of workGroups" class="work-group-btn" (click)="openTaskForm(g.id)" 
+            [style.borderColor]="g.color + '20'" [style.--group-color]="g.color">
+      <span [style]="'position:absolute;left:0;top:0;bottom:0;width:4px;background:' + g.color + ';border-radius:var(--radius-md) 0 0 var(--radius-md);'"></span>
+      <span class="group-icon">{{ g.icon }}</span>
+      <span class="group-label">
+        <span class="group-name">{{ g.shortName }}</span>
+        <span class="group-tag" [style.color]="g.color">{{ (g.name.length > 30) ? (g.name | slice:0:30) + '...' : g.name }}</span>
+      </span>
+    </button>
+  </div>
+</div>
+
+<!-- Daily Task Table -->
+<div class="task-section">
+  <div class="task-list-header">
+    <h2 class="section-title">📝 Bảng công việc hàng ngày</h2>
+    <span class="task-count">{{ kpi.totalTasks }} công việc · {{ kpi.completedTasks }} hoàn thành · {{ kpi.pendingTasks }} đang chờ</span>
+  </div>
+  
+  <app-daily-table [tasks]="tasks" [canEdit]="canEdit" (editTask)="editExistingTask($event)"></app-daily-table>
+</div>
+
+<!-- Task Form Modal -->
+<app-task-form *ngIf="isTaskFormOpen"
+               [isOpen]="true"
+               [userId]="userId"
+               [date]="currentDate"
+               [selectedGroupId]="selectedGroupIdForForm"
+               [existingTask]="selectedTaskForEdit"
+               (formClosed)="closeTaskForm()">
+</app-task-form>
+
+<!-- Export Modal -->
+<div class="modal-overlay" *ngIf="exportModal.isOpen" (click)="closeExportModalOnOverlay($event)">
+  <div class="modal">
+    <div class="modal-title">{{ exportModal.title }}</div>
+    
+    <div class="form-group" *ngIf="exportModal.period === 'daily'">
+      <label>Chọn ngày</label>
+      <input type="date" [(ngModel)]="exportModal.date" class="date-input" style="width:100%;" />
+    </div>
+
+    <div class="form-group" *ngIf="exportModal.period === 'weekly'">
+      <label>Chọn một ngày trong tuần cần xuất</label>
+      <input type="date" [(ngModel)]="exportModal.date" class="date-input" style="width:100%;" />
+      <p style="font-size:12px; color:var(--text-muted); margin-top:6px;">Hệ thống sẽ tự động tính tuần (Thứ 2 – Chủ nhật) chứa ngày đã chọn.</p>
+    </div>
+
+    <div class="form-group" *ngIf="exportModal.period === 'monthly'">
+      <label>Chọn tháng</label>
+      <input type="month" [(ngModel)]="exportModal.month" class="date-input" style="width:100%;" />
+    </div>
+
+    <div class="form-group" *ngIf="exportModal.period === 'quarterly' || exportModal.period === 'halfyear' || exportModal.period === 'yearly'">
+      <label *ngIf="exportModal.period === 'quarterly'">Chọn quý</label>
+      <select *ngIf="exportModal.period === 'quarterly'" [(ngModel)]="exportModal.quarter" style="width:100%; padding:10px 14px; background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-sm); color:var(--text-primary); font-family:var(--font-family); font-size:14px;">
+        <option value="1">Quý 1 (Tháng 1 – 3)</option>
+        <option value="2">Quý 2 (Tháng 4 – 6)</option>
+        <option value="3">Quý 3 (Tháng 7 – 9)</option>
+        <option value="4">Quý 4 (Tháng 10 – 12)</option>
+      </select>
+
+      <label *ngIf="exportModal.period === 'halfyear'">Chọn kỳ 6 tháng</label>
+      <select *ngIf="exportModal.period === 'halfyear'" [(ngModel)]="exportModal.half" style="width:100%; padding:10px 14px; background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-sm); color:var(--text-primary); font-family:var(--font-family); font-size:14px;">
+        <option value="1">6 tháng đầu (Tháng 1 – 6)</option>
+        <option value="2">6 tháng cuối (Tháng 7 – 12)</option>
+      </select>
+    </div>
+
+    <div class="form-group" *ngIf="exportModal.period === 'quarterly' || exportModal.period === 'halfyear' || exportModal.period === 'yearly'">
+      <label>Năm</label>
+      <input type="number" [(ngModel)]="exportModal.year" min="2020" max="2100" style="width:100%; padding:10px 14px; background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-sm); color:var(--text-primary); font-family:var(--font-family); font-size:14px;" />
+    </div>
+
+    <div class="form-actions" style="display:flex; gap:10px; margin-top:20px;">
+      <button class="btn btn-primary" (click)="confirmExport()" style="flex:1;">📥 Xuất Excel</button>
+      <button class="btn btn-secondary" (click)="closeExportModal()" style="flex:1;">Hủy</button>
+    </div>
+  </div>
+</div>

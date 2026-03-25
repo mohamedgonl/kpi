@@ -1,0 +1,151 @@
+<div class="daily-table-wrap">
+  <table class="daily-table" id="dailyTaskTable">
+    <thead>
+      <tr>
+        <th rowspan="3" class="col-stt">STT</th>
+        <th rowspan="3" class="col-content">Nội dung nhiệm vụ</th>
+        <th colspan="5" class="col-group-header assign-header">GIAO NHIỆM VỤ</th>
+        <th colspan="7" class="col-group-header eval-header">ĐÁNH GIÁ</th>
+      </tr>
+      <tr>
+        <th rowspan="2" class="col-deadline">Ngày hết hạn</th>
+        <th rowspan="2" class="col-product">Sản phẩm công việc</th>
+        <th rowspan="2" class="col-coeff">Hệ số quy đổi</th>
+        <th rowspan="2" class="col-assigned">Số lượng giao</th>
+        <th rowspan="2" class="col-assigned-conv">Số lượng giao quy đổi</th>
+        <th colspan="2" class="col-qty-header">Đánh giá số lượng</th>
+        <th colspan="3" class="col-progress-header">Đánh giá tiến độ</th>
+        <th colspan="2" class="col-quality-header">Đánh giá chất lượng</th>
+      </tr>
+      <tr>
+        <th class="col-actual">SL hoàn thành thực tế</th>
+        <th class="col-actual-conv">SL HT thực tế quy đổi</th>
+        <th class="col-completion">Ngày hoàn thành</th>
+        <th class="col-delay">Số ngày chậm</th>
+        <th class="col-progress-conv">SL đạt tiến độ QĐ</th>
+        <th class="col-rework">Số lần làm lại</th>
+        <th class="col-quality-conv">SL đạt chất lượng QĐ</th>
+      </tr>
+      <tr class="col-numbers-row">
+        <td>(1)</td>
+        <td>(2)</td>
+        <td>(3)</td>
+        <td>(4)</td>
+        <td>(5)</td>
+        <td>(6)</td>
+        <td>(7)=(5)×(6)</td>
+        <td>(8)</td>
+        <td>(9)=(5)×(8)</td>
+        <td>(10)</td>
+        <td>(11)=(10)-(3)</td>
+        <td>(12)=(9)-(11)×25%×(9)</td>
+        <td>(13)</td>
+        <td>(14)=(9)-(13)×25%×(9)</td>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngIf="tasks.length === 0">
+        <td colspan="14" class="empty-row">Chưa có công việc nào</td>
+      </tr>
+
+      <tr *ngFor="let t of mappedTasks; let i = index" 
+          class="task-row" 
+          [class.row-late]="t.cols.delayDays > 0"
+          [class.row-rework]="t.task.reworkCount > 0">
+        
+        <td class="cell-center">{{ i + 1 }}</td>
+        
+        <td class="cell-left">
+          <div class="cell-task-name" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+            <div>
+              <span *ngIf="t.group" class="mini-tag" [style.background]="t.group.bgColor" [style.color]="t.group.color">
+                {{ t.group.icon }}
+              </span>
+              <span>{{ t.task.name }}</span>
+            </div>
+            <div class="row-actions" style="white-space:nowrap; margin-left:8px;" *ngIf="canEdit">
+              <button type="button" class="btn-icon" (click)="editTask.emit(t.task)" title="Sửa công việc" style="background:none; border:none; cursor:pointer; font-size:14px; padding:2px;">✏️</button>
+              <button type="button" class="btn-icon" (click)="onDeleteTask(t.task.id)" title="Xóa công việc" style="background:none; border:none; cursor:pointer; font-size:14px; padding:2px;">🗑️</button>
+            </div>
+          </div>
+        </td>
+
+        <td class="cell-center" [class.editable]="canEdit && isAdmin" (click)="startEdit(t.task, 'deadline', canEdit && isAdmin)">
+          <ng-container *ngIf="editingId !== t.task.id || editingField !== 'deadline'">
+             {{ formatDate(t.task.deadline) || '—' }}
+          </ng-container>
+          <input *ngIf="editingId === t.task.id && editingField === 'deadline'" type="date" [(ngModel)]="editValue" (blur)="saveEdit(t.task)" (change)="saveEdit(t.task)" class="inline-input" autofocus />
+        </td>
+
+        <td class="cell-center">{{ t.task.productType || '—' }}</td>
+        <td class="cell-center">{{ fmt(t.task.coefficient) }}</td>
+        
+        <td class="cell-center" [class.editable]="canEdit && isAdmin" (click)="startEdit(t.task, 'assignedQty', canEdit && isAdmin)">
+          <ng-container *ngIf="editingId !== t.task.id || editingField !== 'assignedQty'">
+             {{ fmt(t.task.assignedQty) }}
+          </ng-container>
+          <input *ngIf="editingId === t.task.id && editingField === 'assignedQty'" type="number" step="0.1" min="0" [(ngModel)]="editValue" (blur)="saveEdit(t.task)" (keydown.enter)="saveEdit(t.task)" class="inline-input" autofocus />
+        </td>
+
+        <td class="cell-center computed">{{ fmt(t.cols.assignedQtyConverted) }}</td>
+        
+        <td class="cell-center" [class.editable]="canEdit" (click)="startEdit(t.task, 'actualQty', canEdit)">
+          <ng-container *ngIf="editingId !== t.task.id || editingField !== 'actualQty'">
+             {{ fmt(t.task.actualQty) }}
+          </ng-container>
+          <input *ngIf="editingId === t.task.id && editingField === 'actualQty'" type="number" step="0.1" min="0" [(ngModel)]="editValue" (blur)="saveEdit(t.task)" (keydown.enter)="saveEdit(t.task)" class="inline-input" autofocus />
+        </td>
+
+        <td class="cell-center computed">{{ fmt(t.cols.actualQtyConverted) }}</td>
+
+        <td class="cell-center" [class.editable]="canEdit" (click)="startEdit(t.task, 'completionDate', canEdit)">
+          <ng-container *ngIf="editingId !== t.task.id || editingField !== 'completionDate'">
+             {{ formatDate(t.task.completionDate) || '—' }}
+          </ng-container>
+          <input *ngIf="editingId === t.task.id && editingField === 'completionDate'" type="date" [(ngModel)]="editValue" (blur)="saveEdit(t.task)" (change)="saveEdit(t.task)" class="inline-input" autofocus />
+        </td>
+
+        <td class="cell-center" [class.cell-warning]="t.cols.delayDays > 0">{{ fmt(t.cols.delayDays) }}</td>
+        
+        <td class="cell-center computed">{{ fmt(t.cols.progressQtyConverted) }}</td>
+
+        <td class="cell-center" [class.editable]="canEdit" (click)="startEdit(t.task, 'reworkCount', canEdit)">
+          <ng-container *ngIf="editingId !== t.task.id || editingField !== 'reworkCount'">
+             {{ t.task.reworkCount || 0 }}
+          </ng-container>
+          <input *ngIf="editingId === t.task.id && editingField === 'reworkCount'" type="number" step="1" min="0" [(ngModel)]="editValue" (blur)="saveEdit(t.task)" (keydown.enter)="saveEdit(t.task)" class="inline-input" autofocus />
+        </td>
+
+        <td class="cell-center computed">{{ fmt(t.cols.qualityQtyConverted) }}</td>
+      </tr>
+
+      <!-- Summary Rows -->
+      <ng-container *ngIf="showSummary && tasks.length > 0">
+        <tr class="summary-row">
+            <td colspan="6" class="cell-right summary-label">Tổng cộng</td>
+            <td class="cell-center summary-val">{{ fmt(summary.totalCol7) }}</td>
+            <td class="cell-center"></td>
+            <td class="cell-center summary-val">{{ fmt(summary.totalCol9) }}</td>
+            <td class="cell-center"></td>
+            <td class="cell-center"></td>
+            <td class="cell-center summary-val">{{ fmt(summary.totalCol12) }}</td>
+            <td class="cell-center"></td>
+            <td class="cell-center summary-val">{{ fmt(summary.totalCol14) }}</td>
+        </tr>
+        <tr class="pct-row">
+            <td colspan="8" class="cell-right pct-label">Điểm tỷ lệ phần trăm (%)</td>
+            <td class="cell-center pct-val">{{ summary.pctQty.toFixed(1) }}%</td>
+            <td colspan="2" class="cell-center"></td>
+            <td class="cell-center pct-val">{{ summary.pctProgress.toFixed(1) }}%</td>
+            <td class="cell-center"></td>
+            <td class="cell-center pct-val">{{ summary.pctQuality.toFixed(1) }}%</td>
+        </tr>
+        <tr class="kpi-row">
+            <td colspan="2" class="cell-right kpi-formula-label">Điểm đánh giá KPI =</td>
+            <td colspan="4" class="cell-center kpi-formula">(a + b + c) / 3</td>
+            <td colspan="8" class="cell-left kpi-final-val">{{ summary.kpiScore.toFixed(1) }}%</td>
+        </tr>
+      </ng-container>
+    </tbody>
+  </table>
+</div>

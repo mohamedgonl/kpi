@@ -1,0 +1,114 @@
+<div class="dashboard-header">
+    <h1 class="dashboard-title">⚙️ <span>Cài đặt</span></h1>
+</div>
+
+<div class="settings-grid">
+    <!-- User Names -->
+    <div class="settings-card">
+        <div class="settings-card-title">👥 {{ isAdmin ? 'Danh sách 24 người dùng' : 'Thông tin cá nhân' }}</div>
+        <div class="user-list-edit">
+            <div class="user-edit-row" *ngFor="let u of (isAdmin ? users : listCurrentUser)">
+                <span class="user-num">{{ u.id }}</span>
+                <input type="text" [(ngModel)]="u.name" class="user-name-input" />
+            </div>
+        </div>
+        <div class="form-actions" style="margin-top: 16px;">
+            <button class="btn btn-primary" (click)="saveUsers()">💾 Lưu thay đổi</button>
+        </div>
+    </div>
+
+    <!-- Passwords -->
+    <div class="settings-card">
+        <div class="settings-card-title">🔐 Thay đổi Mật khẩu</div>
+        <div class="form-group">
+            <ng-container *ngIf="isAdmin">
+                <label>Chọn người dùng</label>
+                <select [(ngModel)]="pwdUserId" style="margin-bottom: 12px; width: 100%;">
+                    <option *ngFor="let u of users" [value]="u.id">{{ u.name }}</option>
+                </select>
+            </ng-container>
+            <ng-container *ngIf="!isAdmin">
+                <label>Tài khoản hiện tại</label>
+                <input type="text" [value]="currentUser?.name" disabled style="margin-bottom: 12px; width: 100%; opacity: 0.7;" />
+            </ng-container>
+
+            <label>Mật khẩu mới</label>
+            <input type="password" [(ngModel)]="newPassword" placeholder="Nhập mật khẩu mới..." style="width: 100%;" />
+        </div>
+        <div class="form-actions" style="margin-top: 16px;">
+            <button class="btn btn-primary btn-full" (click)="savePassword()">Cập nhật Mật khẩu</button>
+        </div>
+    </div>
+
+    <!-- Cloud & Security Status -->
+    <div class="settings-card">
+        <div class="settings-card-title">☁️ Trạng thái đồng bộ & Bảo mật</div>
+        <div class="status-list">
+            <div class="status-item">
+                <span class="status-icon">{{ cloudActive ? '✅' : '⚠️' }}</span>
+                <div class="status-info">
+                    <span class="status-label">Đồng bộ đám mây (Cloud Sync)</span>
+                    <span class="status-value">{{ cloudActive ? '🟢 Đang hoạt động — Dữ liệu được đồng bộ qua Firebase' : '🟡 Chưa kích hoạt — Đang sử dụng lưu trữ cục bộ' }}</span>
+                </div>
+            </div>
+            <div class="status-item">
+                <span class="status-icon">✅</span>
+                <div class="status-info">
+                    <span class="status-label">Website App (Mã nguồn Web)</span>
+                    <span class="status-value">Đã chuyển đổi hoàn toàn sang Angular 18 Enterprise.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Management (Admin only) -->
+    <ng-container *ngIf="isAdmin">
+        <div class="settings-card">
+            <div class="settings-card-title">📦 Quản lý dữ liệu</div>
+            <div class="data-actions">
+                <button class="btn btn-primary btn-full" (click)="exportData()">📤 Xuất dữ liệu (JSON)</button>
+                <button class="btn btn-secondary btn-full" (click)="fileInput.click()">📥 Nhập dữ liệu (JSON)</button>
+                <input type="file" #fileInput accept=".json" style="display:none" (change)="importData($event)" />
+                <button class="btn btn-secondary btn-full" style="color: #ef4444;" (click)="resetTasksData()">🗑️ Xóa dữ liệu công việc (Reset Data)</button>
+            </div>
+        </div>
+
+        <!-- Work Groups Management -->
+        <div class="settings-card" style="grid-column: 1 / -1;">
+            <div class="settings-card-title">📋 Quản lý Danh mục Nhóm Công việc</div>
+            <div class="status-info" style="margin-bottom: 16px; font-size:13px; color:var(--text-secondary);">
+                Bạn có thể thay đổi danh mục 7 nhóm công việc và các mục chi tiết dưới định dạng JSON.<br>
+                <i>Thêm thuộc tính <code>excelGroup: 1</code> (từ 1 đến 5) vào từng nhóm/mục để phần mềm biết cột nào sẽ được xuất ra trong file Excel.</i>
+            </div>
+            <textarea [(ngModel)]="workGroupsJson" style="width:100%; height: 350px; font-family: monospace; font-size: 12px; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; resize: vertical;"></textarea>
+            <div class="form-actions" style="margin-top: 16px; justify-content: space-between;">
+                <button class="btn btn-secondary" (click)="resetWorkGroups()">Khôi phục Mặc định</button>
+                <button class="btn btn-primary" (click)="saveWorkGroups()">💾 Lưu cấu hình Danh mục</button>
+            </div>
+        </div>
+    </ng-container>
+
+    <!-- Theme -->
+    <div class="settings-card">
+        <div class="settings-card-title">🎨 Giao diện</div>
+        <div style="display:flex; gap:8px;">
+            <button class="btn btn-secondary" (click)="setTheme('dark')">🌙 Tối</button>
+            <button class="btn btn-secondary" (click)="setTheme('light')">☀️ Sáng</button>
+        </div>
+
+        <div style="margin-top: 24px;">
+            <div class="settings-card-title">ℹ️ Thông tin</div>
+            <p style="font-size:13px; color:var(--text-secondary); line-height:1.8;">
+                <strong>KPI Tracker v3.0 (Angular Edition)</strong><br>
+                Hệ thống theo dõi KPI cho 24 người dùng<br>
+                VỤ PHÁP CHẾ - BỘ CÔNG THƯƠNG<br>
+                Công thức: KPI = (a + b + c) ÷ 3<br>
+                • a = Số lượng % = Σcol9 / Σcol7<br>
+                • b = Chất lượng % = Σcol14 / Σcol7<br>
+                • c = Tiến độ % = Σcol12 / Σcol7<br>
+                • Bảng 14 cột đa cấp với hệ số quy đổi<br>
+                {{ cloudActive ? '• ☁️ Đồng bộ đám mây Firebase' : '• 💾 Lưu trữ cục bộ' }}
+            </p>
+        </div>
+    </div>
+</div>

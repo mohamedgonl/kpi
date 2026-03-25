@@ -1,0 +1,77 @@
+<div class="modal-overlay" *ngIf="isOpen" (click)="closeOnOverlay($event)">
+  <div class="modal" style="max-width:600px;">
+    <h2 class="modal-title">
+      <ng-container *ngIf="existingTask">✏️ Sửa công việc</ng-container>
+      <ng-container *ngIf="!existingTask && group">{{ group.icon }} Thêm công việc — {{ group.shortName }}</ng-container>
+      <ng-container *ngIf="!existingTask && !group">➕ Thêm công việc</ng-container>
+    </h2>
+    <p *ngIf="group" style="font-size:12px; color:var(--text-muted); margin-bottom:18px;">{{ group.name }}</p>
+
+    <form (ngSubmit)="onSubmit()">
+      <div class="form-row">
+        <div class="form-group" style="flex:2;">
+          <label>Nội dung nhiệm vụ *</label>
+          <select [(ngModel)]="formData.itemId" name="itemId" (change)="onItemSelect($event)" style="width:100%;">
+            <option value="">— Chọn từ danh mục hoặc nhập tay —</option>
+            <option *ngFor="let item of filteredItems" [value]="item.id">
+              [{{ item.subGroupId ? item.subGroupId : item.id }}] {{ item.name }} (×{{ item.coefficient }})
+            </option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Hoặc nhập tên công việc thủ công</label>
+        <input type="text" [(ngModel)]="formData.name" name="name" [placeholder]="dynamicPlaceholder" />
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nhóm công việc</label>
+          <select [(ngModel)]="formData.groupId" name="groupId">
+            <option *ngFor="let g of workGroups" [value]="g.id">
+              {{ g.icon }} {{ g.shortName }} — {{ (g.name.length > 40) ? (g.name | slice:0:40) + '...' : g.name }}
+            </option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Hệ số quy đổi</label>
+          <input type="number" [(ngModel)]="formData.coefficient" name="coefficient" min="0.1" max="100" step="0.1" />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Sản phẩm công việc</label>
+          <input type="text" [(ngModel)]="formData.productType" name="productType" placeholder="VD: Công văn, Báo cáo..." />
+        </div>
+        <div class="form-group">
+          <label>Ngày hết hạn</label>
+          <input type="date" [(ngModel)]="formData.deadline" name="deadline" />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Số lượng giao</label>
+          <input type="number" [(ngModel)]="formData.assignedQty" name="assignedQty" min="0" step="0.1" />
+        </div>
+        
+        <div class="form-group" *ngIf="!existingTask">
+          <label>Chỉ đạo lãnh đạo (Tùy chọn)</label>
+          <select [(ngModel)]="formData.leaderId" name="leaderId">
+            <option value="">— Không có —</option>
+            <option value="1">Ngô Đức Minh</option>
+            <option value="2">Bùi Thị Bình Giang</option>
+            <option value="3">Phạm Thành Trung</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" (click)="close()">Hủy</button>
+        <button type="submit" class="btn btn-primary">{{ existingTask ? '✓ Lưu thay đổi' : '✓ Thêm công việc' }}</button>
+      </div>
+    </form>
+  </div>
+</div>

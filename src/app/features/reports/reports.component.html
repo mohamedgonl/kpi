@@ -1,0 +1,119 @@
+<div class="dashboard-header">
+  <h1 class="dashboard-title">📈 <span>Báo cáo</span></h1>
+  <div class="date-picker-wrap">
+    <label>📅 Ngày báo cáo:</label>
+    <input type="date" class="date-input" [(ngModel)]="reportDate" (change)="refreshReport()" />
+  </div>
+</div>
+
+<div class="report-tabs">
+  <button class="report-tab" [class.active]="currentPeriod === 'daily'" (click)="setPeriod('daily')">Ngày</button>
+  <button class="report-tab" [class.active]="currentPeriod === 'weekly'" (click)="setPeriod('weekly')">Tuần</button>
+  <button class="report-tab" [class.active]="currentPeriod === 'monthly'" (click)="setPeriod('monthly')">Tháng</button>
+  <button class="report-tab" [class.active]="currentPeriod === 'quarterly'" (click)="setPeriod('quarterly')">Quý</button>
+  <button class="report-tab" [class.active]="currentPeriod === 'halfyear'" (click)="setPeriod('halfyear')">6 tháng</button>
+  <button class="report-tab" [class.active]="currentPeriod === 'yearly'" (click)="setPeriod('yearly')">Năm</button>
+  <button class="btn btn-secondary" (click)="openExportModal()" style="margin-left: auto; padding: 6px 12px; font-size: 13px;">📥 Xuất Excel</button>
+</div>
+
+<!-- Department Overview Table -->
+<div class="report-table-wrap">
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Tên</th>
+        <th>Tổng CV</th>
+        <th>Hoàn thành</th>
+        <th>a (SL%)</th>
+        <th>b (CL%)</th>
+        <th>c (TĐ%)</th>
+        <th>KPI</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let row of rows; let i = index" class="report-user-row" (click)="showIndividualReport(row.userId)" style="cursor:pointer;" title="Nhấn để xem chi tiết">
+        <td>{{ i + 1 }}</td>
+        <td style="font-weight:600">{{ row.name }}</td>
+        <td>{{ row.kpi.totalTasks }}</td>
+        <td>{{ row.kpi.completedTasks }}</td>
+        <td>{{ (row.kpi.a | number:'1.1-1') }}%</td>
+        <td>{{ (row.kpi.b | number:'1.1-1') }}%</td>
+        <td>{{ (row.kpi.c | number:'1.1-1') }}%</td>
+        <td><span class="kpi-value" [ngClass]="row.kpiClass">{{ (row.kpi.kpi | number:'1.1-1') }}%</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Individual Detail Panel -->
+<div class="individual-report-panel" *ngIf="selectedUser">
+  <div class="individual-report-header">
+    <h2 class="section-title">📋 Chi tiết: {{ selectedUser.name }}</h2>
+    <button class="btn btn-secondary" (click)="selectedUser = null" style="padding:4px 12px; font-size:12px;">✕ Đóng</button>
+  </div>
+  <div>
+    <app-daily-table [tasks]="selectedUserTasks" [canEdit]="false" [showSummary]="true"></app-daily-table>
+  </div>
+</div>
+
+<!-- Chart Section -->
+<div class="report-chart-section">
+  <h2 class="section-title" style="margin-bottom:14px;">📊 Biểu đồ KPI</h2>
+  <div class="chart-container">
+    <canvas id="kpiChart" #kpiChart></canvas>
+  </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal-overlay" *ngIf="exportModal.isOpen" (click)="closeExportModalOnOverlay($event)">
+  <div class="modal">
+    <div class="modal-title">📥 Xuất báo cáo Excel tổng hợp</div>
+
+    <div class="form-group">
+      <label>Chọn loại thời gian</label>
+      <div class="report-tabs" style="margin-bottom:0; width:100%;">
+        <button class="report-tab" [class.active]="exportModal.period === 'daily'" (click)="exportModal.period = 'daily'">Ngày</button>
+        <button class="report-tab" [class.active]="exportModal.period === 'weekly'" (click)="exportModal.period = 'weekly'">Tuần</button>
+        <button class="report-tab" [class.active]="exportModal.period === 'monthly'" (click)="exportModal.period = 'monthly'">Tháng</button>
+        <button class="report-tab" [class.active]="exportModal.period === 'quarterly'" (click)="exportModal.period = 'quarterly'">Quý</button>
+        <button class="report-tab" [class.active]="exportModal.period === 'halfyear'" (click)="exportModal.period = 'halfyear'">6 tháng</button>
+        <button class="report-tab" [class.active]="exportModal.period === 'yearly'" (click)="exportModal.period = 'yearly'">Năm</button>
+      </div>
+    </div>
+
+    <!-- Date Pickers for Export Modal -->
+    <div class="form-group" *ngIf="exportModal.period === 'daily' || exportModal.period === 'weekly'">
+      <label *ngIf="exportModal.period === 'daily'">Chọn ngày</label>
+      <label *ngIf="exportModal.period === 'weekly'">Chọn ngày trong tuần</label>
+      <input type="date" [(ngModel)]="exportModal.date" class="date-input" style="width:100%;" />
+    </div>
+
+    <div class="form-group" *ngIf="exportModal.period === 'monthly'">
+      <label>Chọn tháng</label>
+      <input type="month" [(ngModel)]="exportModal.month" class="date-input" style="width:100%;" />
+    </div>
+
+    <div class="form-group" *ngIf="['quarterly', 'halfyear', 'yearly'].includes(exportModal.period)">
+      <label *ngIf="exportModal.period === 'quarterly'">Chọn quý</label>
+      <select *ngIf="exportModal.period === 'quarterly'" [(ngModel)]="exportModal.quarter" style="width:100%; padding:10px 14px; background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-sm); font-size:14px;">
+        <option value="1">Quý 1</option><option value="2">Quý 2</option><option value="3">Quý 3</option><option value="4">Quý 4</option>
+      </select>
+
+      <label *ngIf="exportModal.period === 'halfyear'">Chọn kỳ</label>
+      <select *ngIf="exportModal.period === 'halfyear'" [(ngModel)]="exportModal.half" style="width:100%; padding:10px 14px; background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-sm); font-size:14px;">
+        <option value="1">6 tháng đầu</option><option value="2">6 tháng cuối</option>
+      </select>
+      
+      <div style="margin-top: 12px;">
+        <label>Năm</label>
+        <input type="number" [(ngModel)]="exportModal.year" style="width:100%; padding:10px 14px; background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-sm); font-size:14px;" />
+      </div>
+    </div>
+
+    <div class="form-actions" style="display:flex; gap:10px; margin-top:20px;">
+      <button class="btn btn-primary" (click)="confirmExport()" style="flex:1;">📥 Xuất Excel</button>
+      <button class="btn btn-secondary" (click)="exportModal.isOpen = false" style="flex:1;">Hủy</button>
+    </div>
+  </div>
+</div>

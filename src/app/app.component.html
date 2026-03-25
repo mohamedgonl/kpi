@@ -1,0 +1,65 @@
+<div id="app">
+  <!-- Login Screen -->
+  <div id="login-screen" class="login-screen" *ngIf="!isLoggedIn">
+    <div class="login-card">
+      <h2 class="login-title">Đăng nhập</h2>
+      <div class="form-group">
+        <label>Người dùng</label>
+        <select id="loginUserSelect" [(ngModel)]="selectedUserId">
+          <option *ngFor="let user of users" [value]="user.id">{{user.name}}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Mật khẩu</label>
+        <input type="password" id="loginPassword" [(ngModel)]="password" placeholder="Mật khẩu mặc định: 123456" (keyup.enter)="login()" />
+      </div>
+      <button id="loginBtn" class="btn btn-primary login-btn" (click)="login()">Đăng nhập</button>
+      <p id="loginError" class="login-error" *ngIf="loginError" style="color:#ef4444; margin-top:10px; font-size:13px; text-align:center;">
+        Mật khẩu không đúng
+      </p>
+    </div>
+  </div>
+
+  <!-- App Header -->
+  <header class="app-header" id="app-header" *ngIf="isLoggedIn">
+    <div class="header-inner">
+      <div class="app-logo">
+        <div class="logo-icon">📊</div>
+        <div class="logo-text">
+          <span>KPI Tracker</span>
+          <span class="logo-subtitle">VỤ PHÁP CHẾ - BỘ CÔNG THƯƠNG</span>
+        </div>
+      </div>
+
+      <nav class="nav-tabs">
+        <button class="nav-tab" routerLink="/dashboard" routerLinkActive="active">📋 Dashboard</button>
+        <button class="nav-tab" routerLink="/reports" routerLinkActive="active">📈 Báo cáo</button>
+        <button class="nav-tab" routerLink="/settings" routerLinkActive="active">⚙️ Cài đặt</button>
+      </nav>
+
+      <div class="header-actions">
+        <div class="user-selector-wrap">
+          <label>👤</label>
+          <select class="user-select" id="currentUserSelect" [(ngModel)]="currentUserId" (change)="changeUser()">
+            <option *ngFor="let user of visibleUsers" [value]="user.id">{{user.name}}</option>
+          </select>
+        </div>
+        <span class="cloud-indicator" id="cloudIndicator" *ngIf="isCloudActive" title="Đồng bộ đám mây đang hoạt động">☁️</span>
+        <button class="btn btn-secondary" id="logoutBtn" style="padding: 6px 14px; font-size: 13px; margin-right: 8px;" (click)="logout()">Đăng xuất</button>
+        <button class="theme-toggle" id="themeToggle" title="Chuyển đổi giao diện" (click)="toggleTheme()">{{ theme === 'dark' ? '🌙' : '☀️' }}</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="app-main" id="app-main" *ngIf="isLoggedIn">
+    <!-- Angular Router renders pages here -->
+    <router-outlet></router-outlet>
+  </main>
+
+  <!-- Modal Container -->
+  <div id="modal-container"></div>
+
+  <!-- Notification Container -->
+  <div id="notification-container"></div>
+</div>
