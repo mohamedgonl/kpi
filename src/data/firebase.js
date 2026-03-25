@@ -16,14 +16,14 @@ import { getDatabase, ref, set, get, onValue, update, remove } from 'firebase/da
 // FIREBASE CONFIG — Replace with your project's config
 // ============================================================
 const firebaseConfig = {
-    apiKey: "AIzaSyBnBvHHFMnnaHoPYUXs-2zUR2g1l6jLHfU",
-  authDomain: "kpi-dun.firebaseapp.com",
-  databaseURL: "https://kpi-dun-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "kpi-dun",
-  storageBucket: "kpi-dun.firebasestorage.app",
-  messagingSenderId: "1085391599947",
-  appId: "1:1085391599947:web:55dab3afa7e71f82ff10ce",
-  measurementId: "G-LZGGL975YQ"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 let app = null;
@@ -37,8 +37,8 @@ let listeners = {};
  */
 export function initFirebase() {
     try {
-        if (firebaseConfig.apiKey === 'YOUR_API_KEY') {
-            console.warn('[Firebase] Not configured. Using localStorage only. Set your Firebase config in firebase.js');
+        if (!firebaseConfig.apiKey || firebaseConfig.apiKey === 'YOUR_API_KEY') {
+            console.warn('[Firebase] Not configured. Please set your environment variables in .env');
             isFirebaseEnabled = false;
             return false;
         }
