@@ -72,6 +72,13 @@ export function renderReports(container) {
   let currentPeriod = 'daily';
   let reportDate = today;
 
+  function formatDateAsYYYYMMDD(d) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   function getDateRange(period, baseDate) {
     const d = new Date(baseDate);
     let start, end;
@@ -84,16 +91,18 @@ export function renderReports(container) {
       monday.setDate(diff);
       const sunday = new Date(monday);
       sunday.setDate(monday.getDate() + 6);
-      start = monday.toISOString().split('T')[0];
-      end = sunday.toISOString().split('T')[0];
+      start = formatDateAsYYYYMMDD(monday);
+      end = formatDateAsYYYYMMDD(sunday);
     } else if (period === 'monthly') {
       start = `${baseDate.substring(0, 7)}-01`;
       const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-      end = lastDay.toISOString().split('T')[0];
+      end = formatDateAsYYYYMMDD(lastDay);
     } else if (period === 'quarterly') {
       const qm = Math.floor(d.getMonth() / 3) * 3;
-      start = new Date(d.getFullYear(), qm, 1).toISOString().split('T')[0];
-      end = new Date(d.getFullYear(), qm + 3, 0).toISOString().split('T')[0];
+      const startDate = new Date(d.getFullYear(), qm, 1);
+      const endDate = new Date(d.getFullYear(), qm + 3, 0);
+      start = formatDateAsYYYYMMDD(startDate);
+      end = formatDateAsYYYYMMDD(endDate);
     } else if (period === 'halfyear') {
       if (d.getMonth() < 6) {
         start = `${d.getFullYear()}-01-01`;
