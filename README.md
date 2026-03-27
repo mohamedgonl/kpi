@@ -147,4 +147,4 @@ To make the automated deployment work, you MUST add the following secrets to you
 4. A JSON file will download. Copy the ENTIRE content of this file and paste it into the `FIREBASE_SERVICE_ACCOUNT_KPI_DUN` secret on GitHub.
 
 ### 3. Automatic Deployments
-Once the secrets are set, every time you run `git push origin main`, GitHub will build and deploy your site automatically.
+Once the secrets are set, every time you run `git push origin deploy`, GitHub will build and deploy your site automatically.
