@@ -128,6 +128,13 @@ export class DashboardComponent implements OnInit {
     }
   }
 
+  private formatDate(d: Date): string {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   getExportDateRange() {
     let start, end, label;
     const m = this.exportModal;
@@ -146,16 +153,17 @@ export class DashboardComponent implements OnInit {
         monday.setDate(diff);
         const sunday = new Date(monday);
         sunday.setDate(monday.getDate() + 6);
-        start = monday.toISOString().split('T')[0];
-        end = sunday.toISOString().split('T')[0];
+        start = this.formatDate(monday);
+        end = this.formatDate(sunday);
         label = `Tuan_${start}_den_${end}`;
         break;
       }
       case 'monthly': {
         const [y, mm] = m.month.split('-').map(Number);
-        start = `${m.month}-01`;
+        const startDate = new Date(y, mm - 1, 1);
         const lastDay = new Date(y, mm, 0);
-        end = lastDay.toISOString().split('T')[0];
+        start = this.formatDate(startDate);
+        end = this.formatDate(lastDay);
         label = `Thang_${mm}_${y}`;
         break;
       }
@@ -163,8 +171,10 @@ export class DashboardComponent implements OnInit {
         const q = Number(m.quarter);
         const y = Number(m.year);
         const startMonth = (q - 1) * 3;
-        start = new Date(y, startMonth, 1).toISOString().split('T')[0];
-        end = new Date(y, startMonth + 3, 0).toISOString().split('T')[0];
+        const startDate = new Date(y, startMonth, 1);
+        const endDate = new Date(y, startMonth + 3, 0);
+        start = this.formatDate(startDate);
+        end = this.formatDate(endDate);
         label = `Quy${q}_${y}`;
         break;
       }
@@ -187,6 +197,7 @@ export class DashboardComponent implements OnInit {
     }
     return { start, end, label };
   }
+
 
   exportUserExcel(userId: number, startDate: string, endDate: string, label: string) {
     const user = this.store.getUserById(userId);

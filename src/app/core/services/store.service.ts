@@ -51,6 +51,7 @@ export class StoreService {
             localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(cloudData.workGroups));
         }
         console.log('[Store] Cloud data loaded');
+        this.dashboardRefresh.emit();
       } else {
         const localUsers = this.getUsers();
         const localTasks = this.getTasks();
@@ -188,6 +189,7 @@ export class StoreService {
         if (t.reworkCount === undefined) { t.reworkCount = t.qualityScore === 75 ? 1 : 0; migrated = true; }
         if (t.delayDays === undefined) { t.delayDays = t.progressScore === 75 ? 1 : 0; migrated = true; }
         if (t.itemId === undefined) { t.itemId = ''; migrated = true; }
+        if (t.userId !== undefined && typeof t.userId === 'string') { t.userId = parseInt(t.userId, 10); migrated = true; }
     });
     if (migrated) {
         localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));

@@ -56,6 +56,13 @@ export class ReportsComponent implements OnInit, AfterViewInit {
     this.refreshReport();
   }
 
+  private formatDate(d: Date): string {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   getDateRange(period: string, baseDate: string) {
     const d = new Date(baseDate);
     let start, end;
@@ -68,16 +75,18 @@ export class ReportsComponent implements OnInit, AfterViewInit {
       monday.setDate(diff);
       const sunday = new Date(monday);
       sunday.setDate(monday.getDate() + 6);
-      start = monday.toISOString().split('T')[0];
-      end = sunday.toISOString().split('T')[0];
+      start = this.formatDate(monday);
+      end = this.formatDate(sunday);
     } else if (period === 'monthly') {
       start = `${baseDate.substring(0, 7)}-01`;
       const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-      end = lastDay.toISOString().split('T')[0];
+      end = this.formatDate(lastDay);
     } else if (period === 'quarterly') {
       const qm = Math.floor(d.getMonth() / 3) * 3;
-      start = new Date(d.getFullYear(), qm, 1).toISOString().split('T')[0];
-      end = new Date(d.getFullYear(), qm + 3, 0).toISOString().split('T')[0];
+      const startDate = new Date(d.getFullYear(), qm, 1);
+      const endDate = new Date(d.getFullYear(), qm + 3, 0);
+      start = this.formatDate(startDate);
+      end = this.formatDate(endDate);
     } else if (period === 'halfyear') {
       if (d.getMonth() < 6) {
         start = `${d.getFullYear()}-01-01`; end = `${d.getFullYear()}-06-30`;
@@ -89,6 +98,7 @@ export class ReportsComponent implements OnInit, AfterViewInit {
     }
     return { start: start || '', end: end || '' };
   }
+
 
   refreshReport() {
     const users = this.store.getUsers();
