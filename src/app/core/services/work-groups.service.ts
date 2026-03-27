@@ -7,7 +7,7 @@ export const DEFAULT_WORK_GROUPS = [
     name: 'Công tác xây dựng VBQPPL',
     shortName: 'Nhóm I',
     color: '#3b82f6',
-    bgColor: 'rgba(59, 130, 246, 0.12)',
+    bgColor: 'rgba(59, 130, 246, 0.11)',
     icon: '📝',
     subGroups: [
       {
