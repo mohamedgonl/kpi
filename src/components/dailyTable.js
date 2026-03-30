@@ -69,9 +69,9 @@ export function renderDailyTable(container, tasks, userId, canEdit) {
             <td>(9)=(5)×(8)</td>
             <td>(10)</td>
             <td>(11)=(10)-(3)</td>
-            <td>(12)=(9)-(11)×25%×(9)</td>
+            <td>(12)=(9)×75% (nếu trễ)</td>
             <td>(13)</td>
-            <td>(14)=(9)-(13)×25%×(9)</td>
+            <td>(14)=(9)×75% (nếu làm lại)</td>
           </tr>
         </thead>
         <tbody id="dailyTableBody">

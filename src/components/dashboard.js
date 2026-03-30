@@ -444,9 +444,9 @@ function computeTaskColumnsLocal(task) {
     const deadline = new Date(task.deadline);
     col11 = Math.max(0, Math.ceil((completion - deadline) / (1000 * 60 * 60 * 24)));
   }
-  const col12 = Math.max(0, col9 - col11 * 0.25 * col9);
+  const col12 = col11 > 0 ? Math.max(0, col9 - 0.25 * col9) : col9;
   const reworkCount = task.reworkCount || 0;
-  const col14 = Math.max(0, col9 - reworkCount * 0.25 * col9);
+  const col14 = reworkCount > 0 ? Math.max(0, col9 - 0.25 * col9) : col9;
   return {
     assignedQtyConverted: Math.round(col7 * 10) / 10,
     actualQtyConverted: Math.round(col9 * 10) / 10,
