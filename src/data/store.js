@@ -197,16 +197,16 @@ let taskIdCounter = null;
 
 function getNextId() {
     if (taskIdCounter === null) {
-        const tasks = getTasks();
+        const tasks = getRawTasks();
         taskIdCounter = tasks.length > 0 ? Math.max(...tasks.map(t => t.id)) + 1 : 1;
     }
     return taskIdCounter++;
 }
 
-export function getTasks() {
+export function getRawTasks() {
     const data = localStorage.getItem(STORAGE_KEYS.TASKS);
     if (!data) return [];
-    const tasks = JSON.parse(data);
+    let tasks = JSON.parse(data);
     // Migrate old tasks to new model
     let migrated = false;
     tasks.forEach(t => {
@@ -219,11 +219,25 @@ export function getTasks() {
         if (t.delayDays === undefined) { t.delayDays = t.progressScore === 75 ? 1 : 0; migrated = true; }
         if (t.itemId === undefined) { t.itemId = ''; migrated = true; }
         if (t.userId !== undefined && typeof t.userId === 'string') { t.userId = parseInt(t.userId, 10); migrated = true; }
+        
+        // Soft delete migration: March tasks (month 03) are deleted (is_deleted = 1), others are active (is_deleted = 0)
+        if (t.is_deleted === undefined) {
+            const dateStr = t.date || '';
+            const isMarch = dateStr.includes('-03-');
+            t.is_deleted = isMarch ? 1 : 0;
+            migrated = true;
+        }
     });
+
     if (migrated) {
         localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
+        if (isCloudEnabled()) syncTasksToCloud(tasks);
     }
     return tasks;
+}
+
+export function getTasks() {
+    return getRawTasks().filter(t => t.is_deleted === 0);
 }
 
 export function saveTasks(tasks) {
@@ -238,7 +252,7 @@ export function addTask(task, isAutoAssign = false) {
         return null;
     }
 
-    const tasks = getTasks();
+    const tasks = getRawTasks();
     const newTask = {
         id: getNextId(),
         name: task.name,
@@ -258,7 +272,8 @@ export function addTask(task, isAutoAssign = false) {
         progressScore: 100,
         assignedBy: task.assignedBy || null,
         linkedTaskId: task.linkedTaskId || null,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        is_deleted: 0
     };
     tasks.push(newTask);
     console.log(`[Store] Created task ID ${newTask.id} for user ${newTask.userId}`);
@@ -267,7 +282,7 @@ export function addTask(task, isAutoAssign = false) {
 }
 
 export function updateTask(id, updates, skipSync = false) {
-    const tasks = getTasks();
+    const tasks = getRawTasks();
     const index = tasks.findIndex(t => t.id === id);
     if (index !== -1) {
         tasks[index] = { ...tasks[index], ...updates };
@@ -284,7 +299,7 @@ export function updateTask(id, updates, skipSync = false) {
 const SYNC_FIELDS = ['actualQty', 'completionDate', 'reworkCount', 'status', 'qualityScore', 'progressScore'];
 
 export function syncLinkedTask(taskId) {
-    const tasks = getTasks();
+    const tasks = getRawTasks();
     const task = tasks.find(t => t.id === taskId);
     if (!task || !task.linkedTaskId) return;
 
@@ -303,8 +318,7 @@ export function syncLinkedTask(taskId) {
 }
 
 export function deleteTask(id) {
-    const tasks = getTasks().filter(t => t.id !== id);
-    saveTasks(tasks);
+    updateTask(id, { is_deleted: 1 });
 }
 
 export function getTasksByUserAndDate(userId, date) {
@@ -392,7 +406,7 @@ export function saveWorkGroups(groups) {
 export function exportAllData() {
     return JSON.stringify({
         users: getUsers(),
-        tasks: getTasks(),
+        tasks: getRawTasks(),
         settings: getSettings(),
         exportedAt: new Date().toISOString()
     }, null, 2);

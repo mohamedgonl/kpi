@@ -169,16 +169,16 @@ export class StoreService {
 
   private getNextId() {
     if (this.taskIdCounter === null) {
-        const tasks = this.getTasks();
+        const tasks = this.getRawTasks();
         this.taskIdCounter = tasks.length > 0 ? Math.max(...tasks.map(t => t.id)) + 1 : 1;
     }
     return this.taskIdCounter++;
   }
 
-  getTasks(): any[] {
+  getRawTasks(): any[] {
     const data = localStorage.getItem(STORAGE_KEYS.TASKS);
     if (!data) return [];
-    const tasks = JSON.parse(data);
+    let tasks = JSON.parse(data);
     let migrated = false;
     tasks.forEach((t: any) => {
         if (t.deadline === undefined) { t.deadline = t.date || ''; migrated = true; }
@@ -190,11 +190,27 @@ export class StoreService {
         if (t.delayDays === undefined) { t.delayDays = t.progressScore === 75 ? 1 : 0; migrated = true; }
         if (t.itemId === undefined) { t.itemId = ''; migrated = true; }
         if (t.userId !== undefined && typeof t.userId === 'string') { t.userId = parseInt(t.userId, 10); migrated = true; }
+        
+        // Soft delete migration: March tasks (month 03) are deleted (is_deleted = 1), others are active (is_deleted = 0)
+        if (t.is_deleted === undefined) {
+            const dateStr = t.date || '';
+            const isMarch = dateStr.includes('-03-');
+            t.is_deleted = isMarch ? 1 : 0;
+            migrated = true;
+        }
     });
+
     if (migrated) {
         localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
+        if (this.firebaseService.isCloudEnabled()) {
+          this.firebaseService.syncTasksToCloud(tasks);
+        }
     }
     return tasks;
+  }
+
+  getTasks(): any[] {
+    return this.getRawTasks().filter(t => t.is_deleted === 0);
   }
 
   saveTasks(tasks: any[]) {
@@ -208,7 +224,7 @@ export class StoreService {
         console.error('Unauthorized: Cannot add task to another user');
         return null;
     }
-    const tasks = this.getTasks();
+    const tasks = this.getRawTasks();
     const newTask = {
         id: this.getNextId(),
         name: task.name,
@@ -228,7 +244,8 @@ export class StoreService {
         progressScore: 100,
         assignedBy: task.assignedBy || null,
         linkedTaskId: task.linkedTaskId || null,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        is_deleted: 0
     };
     tasks.push(newTask);
     this.saveTasks(tasks);
@@ -236,7 +253,7 @@ export class StoreService {
   }
 
   updateTask(id: number, updates: any, skipSync = false) {
-    const tasks = this.getTasks();
+    const tasks = this.getRawTasks();
     const index = tasks.findIndex(t => t.id === id);
     if (index !== -1) {
         tasks[index] = { ...tasks[index], ...updates };
@@ -248,7 +265,7 @@ export class StoreService {
 
   syncLinkedTask(taskId: number) {
     const SYNC_FIELDS = ['actualQty', 'completionDate', 'reworkCount', 'status', 'qualityScore', 'progressScore'];
-    const tasks = this.getTasks();
+    const tasks = this.getRawTasks();
     const task = tasks.find(t => t.id === taskId);
     if (!task || !task.linkedTaskId) return;
 
@@ -266,8 +283,7 @@ export class StoreService {
   }
 
   deleteTask(id: number) {
-    const tasks = this.getTasks().filter(t => t.id !== id);
-    this.saveTasks(tasks);
+    this.updateTask(id, { is_deleted: 1 });
   }
 
   getTasksByUserAndDate(userId: number, date: string) {
@@ -324,7 +340,7 @@ export class StoreService {
   exportAllData() {
     return JSON.stringify({
         users: this.getUsers(),
-        tasks: this.getTasks(),
+        tasks: this.getRawTasks(),
         settings: this.getSettings(),
         exportedAt: new Date().toISOString()
     }, null, 2);
