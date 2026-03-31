@@ -1,12 +1,13 @@
 import { Injectable, EventEmitter } from '@angular/core';
 import { FirebaseService } from './firebase.service';
-import { WorkGroupsService } from './work-groups.service';
+import { WorkGroupsService, WORK_GROUPS_VERSION } from './work-groups.service';
 
 const STORAGE_KEYS = {
   USERS: 'kpi_users',
   TASKS: 'kpi_tasks',
   SETTINGS: 'kpi_settings',
-  WORK_GROUPS: 'kpi_work_groups'
+  WORK_GROUPS: 'kpi_work_groups',
+  WORK_GROUPS_VER: 'kpi_work_groups_version'
 };
 
 @Injectable({
@@ -48,7 +49,18 @@ export class StoreService {
             localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(cloudData.settings));
         }
         if (cloudData.workGroups && cloudData.workGroups.length > 0) {
-            localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(cloudData.workGroups));
+            const localVer = localStorage.getItem(STORAGE_KEYS.WORK_GROUPS_VER);
+            if (localVer !== WORK_GROUPS_VERSION) {
+                console.log(`[Store] New WorkGroups version detected: ${WORK_GROUPS_VERSION}. Forcing update from code.`);
+                const def = this.workGroupsService.getAllGroups();
+                localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(def));
+                localStorage.setItem(STORAGE_KEYS.WORK_GROUPS_VER, WORK_GROUPS_VERSION);
+                if (this.firebaseService.isCloudEnabled()) {
+                    this.firebaseService.syncWorkGroupsToCloud(def);
+                }
+            } else {
+                localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(cloudData.workGroups));
+            }
         }
         console.log('[Store] Cloud data loaded');
         this.dashboardRefresh.emit();
@@ -320,6 +332,7 @@ export class StoreService {
 
   saveWorkGroups(groups: any[]) {
     localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(groups));
+    localStorage.setItem(STORAGE_KEYS.WORK_GROUPS_VER, WORK_GROUPS_VERSION);
     if (this.firebaseService.isCloudEnabled()) this.firebaseService.syncWorkGroupsToCloud(groups);
     this.workGroupsUpdated.emit();
   }
@@ -394,11 +407,11 @@ export class StoreService {
     const col14 = reworkCount > 0 ? Math.max(0, col9 - 0.25 * col9) : col9;
 
     return {
-        assignedQtyConverted: Math.round(col7 * 10) / 10,
-        actualQtyConverted: Math.round(col9 * 10) / 10,
+        assignedQtyConverted: Math.round(col7 * 100) / 100,
+        actualQtyConverted: Math.round(col9 * 100) / 100,
         delayDays: col11,
-        progressQtyConverted: Math.round(col12 * 10) / 10,
-        qualityQtyConverted: Math.round(col14 * 10) / 10,
+        progressQtyConverted: Math.round(col12 * 100) / 100,
+        qualityQtyConverted: Math.round(col14 * 100) / 100,
     };
   }
 }

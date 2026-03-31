@@ -5,6 +5,8 @@
  */
 import { getWorkGroups } from './store.js';
 
+export const WORK_GROUPS_VERSION = '1.1'; // Cập nhật version để force sync
+
 export const DEFAULT_WORK_GROUPS = [
   {
     id: 1,

@@ -8,13 +8,14 @@ import {
     syncTasksToCloud, syncUsersToCloud, syncSettingsToCloud, syncWorkGroupsToCloud,
     pullAllFromCloud, listenForTasks, listenForUsers, listenForWorkGroups
 } from './firebase.js';
-import { DEFAULT_WORK_GROUPS } from './workGroups.js';
+import { DEFAULT_WORK_GROUPS, WORK_GROUPS_VERSION } from './workGroups.js';
 
 const STORAGE_KEYS = {
     USERS: 'kpi_users',
     TASKS: 'kpi_tasks',
     SETTINGS: 'kpi_settings',
-    WORK_GROUPS: 'kpi_work_groups'
+    WORK_GROUPS: 'kpi_work_groups',
+    WORK_GROUPS_VER: 'kpi_work_groups_version'
 };
 
 // Track cloud sync state
@@ -50,7 +51,17 @@ export async function initCloudSync() {
                 localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(cloudData.settings));
             }
             if (cloudData.workGroups && cloudData.workGroups.length > 0) {
-                localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(cloudData.workGroups));
+                const localVer = localStorage.getItem(STORAGE_KEYS.WORK_GROUPS_VER);
+                if (localVer !== WORK_GROUPS_VERSION) {
+                    console.log(`[Store] New WorkGroups version detected: ${WORK_GROUPS_VERSION}. Forcing update from code.`);
+                    localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(DEFAULT_WORK_GROUPS));
+                    localStorage.setItem(STORAGE_KEYS.WORK_GROUPS_VER, WORK_GROUPS_VERSION);
+                    if (isCloudEnabled()) {
+                        syncWorkGroupsToCloud(DEFAULT_WORK_GROUPS);
+                    }
+                } else {
+                    localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(cloudData.workGroups));
+                }
             }
             console.log('[Store] Cloud data loaded');
             window.dispatchEvent(new CustomEvent('refreshDashboard'));
@@ -364,11 +375,11 @@ export function computeTaskColumns(task) {
     const col14 = reworkCount > 0 ? Math.max(0, col9 - 0.25 * col9) : col9;
 
     return {
-        assignedQtyConverted: Math.round(col7 * 10) / 10,
-        actualQtyConverted: Math.round(col9 * 10) / 10,
+        assignedQtyConverted: Math.round(col7 * 100) / 100,
+        actualQtyConverted: Math.round(col9 * 100) / 100,
         delayDays: col11,
-        progressQtyConverted: Math.round(col12 * 10) / 10,
-        qualityQtyConverted: Math.round(col14 * 10) / 10,
+        progressQtyConverted: Math.round(col12 * 100) / 100,
+        qualityQtyConverted: Math.round(col14 * 100) / 100,
     };
 }
 
@@ -397,6 +408,7 @@ export function getWorkGroups() {
 
 export function saveWorkGroups(groups) {
     localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(groups));
+    localStorage.setItem(STORAGE_KEYS.WORK_GROUPS_VER, WORK_GROUPS_VERSION);
     if (isCloudEnabled()) syncWorkGroupsToCloud(groups);
     window.dispatchEvent(new CustomEvent('workGroupsUpdated'));
 }

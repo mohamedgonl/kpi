@@ -1,33 +1,25 @@
 import { Injectable } from '@angular/core';
 
+export const WORK_GROUPS_VERSION = '1.1'; // Cập nhật version để force sync
+
 export const DEFAULT_WORK_GROUPS = [
   {
     id: 1,
     roman: 'I',
-    name: 'Công tác xây dựng VBQPPL',
+    name: 'Xây dựng thể chế, chính sách, pháp luật, điều ước quốc tế',
     shortName: 'Nhóm I',
-    color: '#3b82f6',
-    bgColor: 'rgba(59, 130, 246, 0.11)',
-    icon: '📝',
+    color: '#6366f1',
+    bgColor: 'rgba(99, 102, 241, 0.12)',
+    icon: '📋',
     subGroups: [
       {
         id: '1.1',
-        name: 'Chủ trì soạn thảo (Lập đề nghị xây dựng, Soạn thảo VBQPPL)',
+        name: 'Chi tiết',
         items: [
-          { id: '1.1.1', name: 'Luật (Chính sách, dự thảo)', productType: 'Luật', excelGroup: 4, coefficient: 151 },
-          { id: '1.1.2', name: 'Pháp lệnh, Nghị quyết QH, UBTVQH', productType: 'PL/NQ', excelGroup: 4, coefficient: 114 },
-          { id: '1.1.3', name: 'Nghị định (Nghị quyết của Chính phủ)', productType: 'Nghị định', excelGroup: 4, coefficient: 76 },
-          { id: '1.1.4', name: 'Quyết định, Chỉ thị của Thủ tướng', productType: 'QĐ/CT', excelGroup: 3, coefficient: 57 },
-          { id: '1.1.5', name: 'Thông tư, Thông tư liên tịch', productType: 'Thông tư', excelGroup: 3, coefficient: 57 }
-        ]
-      },
-      {
-        id: '1.2',
-        name: 'Phối hợp soạn thảo',
-        items: [
-          { id: '1.2.1', name: 'Luật, Pháp lệnh, Nghị quyết trình QH, UBTVQH', productType: 'Văn bản có ý kiến tham gia', excelGroup: 3, coefficient: 57 },
-          { id: '1.2.2', name: 'Nghị định, Quyết định Thủ tướng quy định chung', productType: 'Văn bản phối hợp, tham gia ý kiến', excelGroup: 3, coefficient: 57 },
-          { id: '1.2.3', name: 'Nghị định, Quyết định TTg chuyên ngành; Thông tư', productType: 'Ý kiến, Phiếu lấy ý kiến, Chữ ký tắt...', excelGroup: 2, coefficient: 38 }
+          { id: '1.1.1', name: 'Xây dựng chính sách, chiến lược, Đề án, quan điểm, định hướng, Luật, Điều ước quốc tế (cấp QH, Nhà nước)', productType: 'Quyết định, Luật, Điều ước quốc tế, Định hướng, Chiến lược, Đề án', excelGroup: 5, coefficient: 95 },
+          { id: '1.1.2', name: 'Xây dựng Nghị định, QĐ của TTg, Thông tư, Điều ước quốc tế (cấp Chính phủ)', productType: 'Nghị định, QĐ của TTg, Thông tư, Điều ước quốc tế', excelGroup: 4, coefficient: 76 },
+          { id: '1.1.3', name: 'Xây dựng các Chương trình, Kế hoạch của Bộ/trình cấp có thẩm quyền', productType: 'Quyết định, Tờ trình cấp có thẩm quyền, Văn bản gửi Bộ Tư pháp', excelGroup: 4, coefficient: 76 },
+          { id: '1.1.4', name: 'Tham gia ý kiến đối với các chiến lược, Đề án, định hướng, kế hoạch, chương trình, VBQPPL, ĐUQT, thỏa thuận quốc tế', productType: 'Văn bản tham gia ý kiến', excelGroup: 3, coefficient: 57 }
         ]
       }
     ]
@@ -35,19 +27,18 @@ export const DEFAULT_WORK_GROUPS = [
   {
     id: 2,
     roman: 'II',
-    name: 'Xây dựng, soạn thảo Điều ước quốc tế, Thỏa thuận quốc tế',
+    name: 'Hướng dẫn và triển khai thực hiện các văn bản (trừ VBQPPL, Đ UQT, TTQT)',
     shortName: 'Nhóm II',
     color: '#8b5cf6',
     bgColor: 'rgba(139, 92, 246, 0.12)',
-    icon: '🌍',
+    icon: '🎯',
     subGroups: [
       {
-        id: '2.1',
+        id: '1.2',
         name: 'Chi tiết',
         items: [
-          { id: '2.1.1', name: 'Chủ trì soạn thảo ĐƯQT', productType: 'ĐƯQT', excelGroup: 4, coefficient: 76 },
-          { id: '2.1.2', name: 'Chủ trì đàm phán, thỏa thuận quốc tế', productType: 'Thỏa thuận quốc tế', excelGroup: 4, coefficient: 76 },
-          { id: '2.1.3', name: 'Phối hợp ĐƯQT, Thỏa thuận quốc tế', productType: 'Văn bản, ý kiến đàm phán', excelGroup: 3, coefficient: 57 }
+          { id: '2.1.1', name: 'Triển khai thực hiện các văn bản', productType: 'Quyết định, Văn bản tham gia ý kiến, Ý kiến tại cuộc họp, Dữ liệu điện tử trên các trang/hệ thống thông tin', excelGroup: 2, coefficient: 38 },
+          { id: '2.1.2', name: 'Theo dõi, đôn đốc tiến độ các chương trình, kế hoạch (đối với người đầu mối chủ trì)', productType: 'Báo cáo tiến độ/ Công văn đôn đốc', excelGroup: 2, coefficient: 38 }
         ]
       }
     ]
@@ -55,18 +46,18 @@ export const DEFAULT_WORK_GROUPS = [
   {
     id: 3,
     roman: 'III',
-    name: 'Xây dựng, ban hành văn bản quy định nội bộ',
+    name: 'Kiểm tra, sơ kết, tổng kết việc thực hiện các văn bản',
     shortName: 'Nhóm III',
     color: '#ec4899',
     bgColor: 'rgba(236, 72, 153, 0.12)',
-    icon: '📊',
+    icon: '🔍',
     subGroups: [
       {
         id: '3.1',
         name: 'Chi tiết',
         items: [
-          { id: '3.1.1', name: 'Theo chương trình, kế hoạch đã phê duyệt', productType: 'Kế hoạch, Quyết định...', excelGroup: 2, coefficient: 38 },
-          { id: '3.1.2', name: 'Chương trình công tác ban hành văn bản mật...', productType: 'Quyết định, Chương trình, Kế hoạch...', excelGroup: 2, coefficient: 38 }
+          { id: '3.1.1', name: 'Kiểm tra, sơ kết, tổng kết', productType: 'Kết luận kiểm tra, Báo cáo sơ kết, Báo cáo tổng kết, báo cáo khác', excelGroup: 2, coefficient: 38 },
+          { id: '3.1.2', name: 'Điều tra, khảo sát, tổ chức Hội nghị, hội thảo', productType: 'Phiếu điều tra, khảo sát, Hội nghị, Hội thảo', excelGroup: 2, coefficient: 38 }
         ]
       }
     ]
