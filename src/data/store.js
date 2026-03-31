@@ -18,6 +18,12 @@ const STORAGE_KEYS = {
     WORK_GROUPS_VER: 'kpi_work_groups_version'
 };
 
+// In-memory data cache
+let _users = [];
+let _tasks = [];
+let _settings = { theme: 'dark', language: 'vi' };
+let _workGroups = [];
+
 // Track cloud sync state
 let cloudSyncActive = false;
 let cloudInitialized = false;
@@ -33,77 +39,73 @@ export async function initCloudSync() {
     cloudInitialized = true;
 
     if (!ok) {
-        console.log('[Store] Running in localStorage-only mode');
+        console.warn('[Store] Firebase not available. Running with defaults.');
         return false;
     }
 
-    // Pull cloud data and merge
     try {
         const cloudData = await pullAllFromCloud();
         if (cloudData) {
-            if (cloudData.users && cloudData.users.length > 0) {
-                localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(cloudData.users));
-            }
-            if (cloudData.tasks && cloudData.tasks.length > 0) {
-                localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(cloudData.tasks));
-            }
-            if (cloudData.settings) {
-                localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(cloudData.settings));
-            }
+            if (cloudData.users) _users = cloudData.users;
+            if (cloudData.tasks) _tasks = cloudData.tasks;
+            if (cloudData.settings) _settings = cloudData.settings;
+            
             if (cloudData.workGroups && cloudData.workGroups.length > 0) {
-                const localVer = localStorage.getItem(STORAGE_KEYS.WORK_GROUPS_VER);
-                if (localVer !== WORK_GROUPS_VERSION) {
-                    console.log(`[Store] New WorkGroups version detected: ${WORK_GROUPS_VERSION}. Forcing update from code.`);
-                    localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(DEFAULT_WORK_GROUPS));
-                    localStorage.setItem(STORAGE_KEYS.WORK_GROUPS_VER, WORK_GROUPS_VERSION);
-                    if (isCloudEnabled()) {
-                        syncWorkGroupsToCloud(DEFAULT_WORK_GROUPS);
-                    }
+                const currentVer = cloudData.settings?.workGroupsVersion || '1.0';
+                if (currentVer !== WORK_GROUPS_VERSION) {
+                    console.log(`[Store] Version mismatch: ${currentVer} vs ${WORK_GROUPS_VERSION}. Forcing code defaults.`);
+                    _workGroups = DEFAULT_WORK_GROUPS;
+                    saveWorkGroups(_workGroups);
                 } else {
-                    localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(cloudData.workGroups));
+                    _workGroups = cloudData.workGroups;
                 }
+            } else {
+                _workGroups = DEFAULT_WORK_GROUPS;
+                saveWorkGroups(_workGroups);
             }
+            
             console.log('[Store] Cloud data loaded');
             window.dispatchEvent(new CustomEvent('refreshDashboard'));
         } else {
-            // Upload local data to cloud if cloud is empty
-            const localUsers = getUsers();
-            const localTasks = getTasks();
-            const localSettings = getSettings();
-            const localWorkGroups = getWorkGroups();
-            await syncUsersToCloud(localUsers);
-            await syncTasksToCloud(localTasks);
-            await syncSettingsToCloud(localSettings);
-            await syncWorkGroupsToCloud(localWorkGroups);
-            console.log('[Store] Local data pushed to cloud');
+            // First run - initialization
+            _users = getDefaultUsers();
+            _tasks = [];
+            _settings = { theme: 'dark', language: 'vi', workGroupsVersion: WORK_GROUPS_VERSION };
+            _workGroups = DEFAULT_WORK_GROUPS;
+            
+            await syncUsersToCloud(_users);
+            await syncTasksToCloud(_tasks);
+            await syncSettingsToCloud(_settings);
+            await syncWorkGroupsToCloud(_workGroups);
+            console.log('[Store] Initial data pushed to cloud');
         }
 
         // Set up real-time listeners
         listenForTasks((tasks) => {
-            if (tasks && tasks.length > 0) {
-                localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
+            if (tasks) {
+                _tasks = tasks;
                 taskIdCounter = null;
                 window.dispatchEvent(new CustomEvent('refreshDashboard'));
             }
         });
 
         listenForUsers((users) => {
-            if (users && users.length > 0) {
-                localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+            if (users) {
+                _users = users;
                 window.dispatchEvent(new CustomEvent('usersUpdated'));
             }
         });
 
         listenForWorkGroups((groups) => {
-            if (groups && groups.length > 0) {
-                localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(groups));
+            if (groups) {
+                _workGroups = groups;
                 window.dispatchEvent(new CustomEvent('workGroupsUpdated'));
                 window.dispatchEvent(new CustomEvent('refreshDashboard'));
             }
         });
 
         cloudSyncActive = true;
-        console.log('[Store] Real-time sync active');
+        console.log('[Store] Pure Cloud Sync active');
         return true;
     } catch (error) {
         console.error('[Store] Cloud sync init error:', error);
@@ -153,37 +155,24 @@ function getDefaultUsers() {
 }
 
 export function getUsers() {
-    const data = localStorage.getItem(STORAGE_KEYS.USERS);
-    if (!data) {
-        const defaults = getDefaultUsers();
-        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(defaults));
-        return defaults;
+    if (_users.length === 0) {
+        _users = getDefaultUsers();
     }
-    const users = JSON.parse(data);
+    
     const defaults = getDefaultUsers();
     let updated = false;
 
-    users.forEach(u => {
-        if (!u.role) {
-            u.role = u.id <= 5 ? 'admin' : 'user';
-            updated = true;
-        }
-        if (!u.password) {
-            u.password = '123456';
-            updated = true;
-        }
-        const defaultUser = defaults.find(d => d.id === u.id);
-        if (defaultUser && (/^Người dùng \d+$/.test(u.name) || /^User \d+/.test(u.name))) {
-            u.name = defaultUser.name;
-            updated = true;
-        }
+    _users.forEach(u => {
+        if (!u.role) { u.role = u.id <= 5 ? 'admin' : 'user'; updated = true; }
+        if (!u.password) { u.password = '123456'; updated = true; }
     });
-    if (updated) saveUsers(users);
-    return users;
+    
+    if (updated) saveUsers(_users);
+    return _users;
 }
 
 export function saveUsers(users) {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    _users = users;
     if (isCloudEnabled()) syncUsersToCloud(users);
 }
 
@@ -215,36 +204,7 @@ function getNextId() {
 }
 
 export function getRawTasks() {
-    const data = localStorage.getItem(STORAGE_KEYS.TASKS);
-    if (!data) return [];
-    let tasks = JSON.parse(data);
-    // Migrate old tasks to new model
-    let migrated = false;
-    tasks.forEach(t => {
-        if (t.deadline === undefined) { t.deadline = t.date || ''; migrated = true; }
-        if (t.productType === undefined) { t.productType = ''; migrated = true; }
-        if (t.assignedQty === undefined) { t.assignedQty = 1; migrated = true; }
-        if (t.actualQty === undefined) { t.actualQty = t.status === 'completed' ? 1 : 0; migrated = true; }
-        if (t.completionDate === undefined) { t.completionDate = t.status === 'completed' ? t.date : ''; migrated = true; }
-        if (t.reworkCount === undefined) { t.reworkCount = t.qualityScore === 75 ? 1 : 0; migrated = true; }
-        if (t.delayDays === undefined) { t.delayDays = t.progressScore === 75 ? 1 : 0; migrated = true; }
-        if (t.itemId === undefined) { t.itemId = ''; migrated = true; }
-        if (t.userId !== undefined && typeof t.userId === 'string') { t.userId = parseInt(t.userId, 10); migrated = true; }
-        
-        // Soft delete migration: March tasks (month 03) are deleted (is_deleted = 1), others are active (is_deleted = 0)
-        if (t.is_deleted === undefined) {
-            const dateStr = t.date || '';
-            const isMarch = dateStr.includes('-03-');
-            t.is_deleted = isMarch ? 1 : 0;
-            migrated = true;
-        }
-    });
-
-    if (migrated) {
-        localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
-        if (isCloudEnabled()) syncTasksToCloud(tasks);
-    }
-    return tasks;
+    return _tasks;
 }
 
 export function getTasks() {
@@ -252,7 +212,7 @@ export function getTasks() {
 }
 
 export function saveTasks(tasks) {
-    localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
+    _tasks = tasks;
     if (isCloudEnabled()) syncTasksToCloud(tasks);
 }
 
@@ -386,29 +346,25 @@ export function computeTaskColumns(task) {
 // ===================== SETTINGS =====================
 
 export function getSettings() {
-    const data = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-    return data ? JSON.parse(data) : { theme: 'dark', language: 'vi' };
+    return _settings;
 }
 
 export function saveSettings(settings) {
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+    _settings = settings;
     if (isCloudEnabled()) syncSettingsToCloud(settings);
 }
 
 // ===================== WORK GROUPS =====================
 
 export function getWorkGroups() {
-    const data = localStorage.getItem(STORAGE_KEYS.WORK_GROUPS);
-    if (!data) {
-        localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(DEFAULT_WORK_GROUPS));
-        return DEFAULT_WORK_GROUPS;
+    if (_workGroups.length === 0) {
+        _workGroups = DEFAULT_WORK_GROUPS;
     }
-    return JSON.parse(data);
+    return _workGroups;
 }
 
 export function saveWorkGroups(groups) {
-    localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(groups));
-    localStorage.setItem(STORAGE_KEYS.WORK_GROUPS_VER, WORK_GROUPS_VERSION);
+    _workGroups = groups;
     if (isCloudEnabled()) syncWorkGroupsToCloud(groups);
     window.dispatchEvent(new CustomEvent('workGroupsUpdated'));
 }

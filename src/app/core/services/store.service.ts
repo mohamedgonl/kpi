@@ -23,6 +23,10 @@ export class StoreService {
   public dashboardRefresh = new EventEmitter<void>();
 
   private taskIdCounter: number | null = null;
+  private _users: any[] = [];
+  private _tasks: any[] = [];
+  private _settings: any = { theme: 'dark', language: 'vi' };
+  private _workGroups: any[] = [];
 
   constructor(
     private firebaseService: FirebaseService,
@@ -32,75 +36,73 @@ export class StoreService {
   async initCloudSync() {
     const ok = this.firebaseService.initFirebase();
     if (!ok) {
-        console.log('[Store] Running in localStorage-only mode');
+        console.log('[Store] Firebase initialization failed. No data sync available.');
         return false;
     }
 
     try {
       const cloudData = await this.firebaseService.pullAllFromCloud();
       if (cloudData) {
-        if (cloudData.users && cloudData.users.length > 0) {
-            localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(cloudData.users));
-        }
-        if (cloudData.tasks && cloudData.tasks.length > 0) {
-            localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(cloudData.tasks));
-        }
-        if (cloudData.settings) {
-            localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(cloudData.settings));
-        }
+        if (cloudData.users) this._users = cloudData.users;
+        if (cloudData.tasks) this._tasks = cloudData.tasks;
+        if (cloudData.settings) this._settings = cloudData.settings;
+        
+        // Handle WorkGroups with versioning
         if (cloudData.workGroups && cloudData.workGroups.length > 0) {
-            const localVer = localStorage.getItem(STORAGE_KEYS.WORK_GROUPS_VER);
-            if (localVer !== WORK_GROUPS_VERSION) {
-                console.log(`[Store] New WorkGroups version detected: ${WORK_GROUPS_VERSION}. Forcing update from code.`);
-                const def = this.workGroupsService.getAllGroups();
-                localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(def));
-                localStorage.setItem(STORAGE_KEYS.WORK_GROUPS_VER, WORK_GROUPS_VERSION);
-                if (this.firebaseService.isCloudEnabled()) {
-                    this.firebaseService.syncWorkGroupsToCloud(def);
-                }
+            const currentVer = cloudData.settings?.workGroupsVersion || '1.0';
+            if (currentVer !== WORK_GROUPS_VERSION) {
+                console.log(`[Store] Version mismatch: ${currentVer} vs ${WORK_GROUPS_VERSION}. Forcing code defaults.`);
+                this._workGroups = this.workGroupsService.getAllGroups();
+                this.saveWorkGroups(this._workGroups);
             } else {
-                localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(cloudData.workGroups));
+                this._workGroups = cloudData.workGroups;
             }
+        } else {
+            this._workGroups = this.workGroupsService.getAllGroups();
+            this.saveWorkGroups(this._workGroups);
         }
+        
         console.log('[Store] Cloud data loaded');
         this.dashboardRefresh.emit();
       } else {
-        const localUsers = this.getUsers();
-        const localTasks = this.getTasks();
-        const localSettings = this.getSettings();
-        const localWorkGroups = this.getWorkGroups();
-        await this.firebaseService.syncUsersToCloud(localUsers);
-        await this.firebaseService.syncTasksToCloud(localTasks);
-        await this.firebaseService.syncSettingsToCloud(localSettings);
-        await this.firebaseService.syncWorkGroupsToCloud(localWorkGroups);
-        console.log('[Store] Local data pushed to cloud');
+        // First run with no cloud data
+        this._users = this.getDefaultUsers();
+        this._tasks = [];
+        this._settings = { theme: 'dark', language: 'vi', workGroupsVersion: WORK_GROUPS_VERSION };
+        this._workGroups = this.workGroupsService.getAllGroups();
+        
+        await this.firebaseService.syncUsersToCloud(this._users);
+        await this.firebaseService.syncTasksToCloud(this._tasks);
+        await this.firebaseService.syncSettingsToCloud(this._settings);
+        await this.firebaseService.syncWorkGroupsToCloud(this._workGroups);
+        console.log('[Store] Initial data pushed to cloud');
       }
 
       this.firebaseService.listenForTasks((tasks) => {
-        if (tasks && tasks.length > 0) {
-            localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
+        if (tasks) {
+            this._tasks = tasks;
             this.taskIdCounter = null;
             this.dashboardRefresh.emit();
         }
       });
 
       this.firebaseService.listenForUsers((users) => {
-        if (users && users.length > 0) {
-            localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+        if (users) {
+            this._users = users;
             this.usersUpdated.emit();
         }
       });
 
       this.firebaseService.listenForWorkGroups((groups) => {
-        if (groups && groups.length > 0) {
-            localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(groups));
+        if (groups) {
+            this._workGroups = groups;
             this.workGroupsUpdated.emit();
             this.dashboardRefresh.emit();
         }
       });
 
       this.cloudSyncActive = true;
-      console.log('[Store] Real-time sync active');
+      console.log('[Store] Real-time sync active (Pure Cloud Mode)');
       return true;
     } catch (error) {
       console.error('[Store] Cloud sync init error:', error);
@@ -130,37 +132,27 @@ export class StoreService {
   }
 
   getUsers(): any[] {
-    const data = localStorage.getItem(STORAGE_KEYS.USERS);
-    if (!data) {
-        const defaults = this.getDefaultUsers();
-        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(defaults));
-        return defaults;
+    if (this._users.length === 0) {
+        this._users = this.getDefaultUsers();
     }
-    const users = JSON.parse(data);
+    
+    // Auto-update core user properties (optional, for safety)
     const defaults = this.getDefaultUsers();
     let updated = false;
 
-    users.forEach((u: any) => {
-        if (!u.role) {
-            u.role = u.id <= 5 ? 'admin' : 'user';
-            updated = true;
-        }
-        if (!u.password) {
-            u.password = '123456';
-            updated = true;
-        }
-        const defaultUser = defaults.find((d: any) => d.id === u.id);
-        if (defaultUser && (/^Người dùng \d+$/.test(u.name) || /^User \d+/.test(u.name))) {
-            u.name = defaultUser.name;
-            updated = true;
-        }
+    this._users.forEach((u: any) => {
+        if (!u.role) { u.role = u.id <= 5 ? 'admin' : 'user'; updated = true; }
+        if (!u.password) { u.password = '123456'; updated = true; }
     });
-    if (updated) this.saveUsers(users);
-    return users;
+    
+    if (updated && this.firebaseService.isCloudEnabled()) {
+        this.saveUsers(this._users);
+    }
+    return this._users;
   }
 
   saveUsers(users: any[]) {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    this._users = users;
     if (this.firebaseService.isCloudEnabled()) this.firebaseService.syncUsersToCloud(users);
   }
 
@@ -188,37 +180,8 @@ export class StoreService {
   }
 
   getRawTasks(): any[] {
-    const data = localStorage.getItem(STORAGE_KEYS.TASKS);
-    if (!data) return [];
-    let tasks = JSON.parse(data);
-    let migrated = false;
-    tasks.forEach((t: any) => {
-        if (t.deadline === undefined) { t.deadline = t.date || ''; migrated = true; }
-        if (t.productType === undefined) { t.productType = ''; migrated = true; }
-        if (t.assignedQty === undefined) { t.assignedQty = 1; migrated = true; }
-        if (t.actualQty === undefined) { t.actualQty = t.status === 'completed' ? 1 : 0; migrated = true; }
-        if (t.completionDate === undefined) { t.completionDate = t.status === 'completed' ? t.date : ''; migrated = true; }
-        if (t.reworkCount === undefined) { t.reworkCount = t.qualityScore === 75 ? 1 : 0; migrated = true; }
-        if (t.delayDays === undefined) { t.delayDays = t.progressScore === 75 ? 1 : 0; migrated = true; }
-        if (t.itemId === undefined) { t.itemId = ''; migrated = true; }
-        if (t.userId !== undefined && typeof t.userId === 'string') { t.userId = parseInt(t.userId, 10); migrated = true; }
-        
-        // Soft delete migration: March tasks (month 03) are deleted (is_deleted = 1), others are active (is_deleted = 0)
-        if (t.is_deleted === undefined) {
-            const dateStr = t.date || '';
-            const isMarch = dateStr.includes('-03-');
-            t.is_deleted = isMarch ? 1 : 0;
-            migrated = true;
-        }
-    });
-
-    if (migrated) {
-        localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
-        if (this.firebaseService.isCloudEnabled()) {
-          this.firebaseService.syncTasksToCloud(tasks);
-        }
-    }
-    return tasks;
+    // Return current memory state
+    return this._tasks;
   }
 
   getTasks(): any[] {
@@ -226,7 +189,7 @@ export class StoreService {
   }
 
   saveTasks(tasks: any[]) {
-    localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
+    this._tasks = tasks;
     if (this.firebaseService.isCloudEnabled()) this.firebaseService.syncTasksToCloud(tasks);
   }
 
@@ -311,28 +274,23 @@ export class StoreService {
   }
 
   getSettings() {
-    const data = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-    return data ? JSON.parse(data) : { theme: 'dark', language: 'vi' };
+    return this._settings;
   }
 
   saveSettings(settings: any) {
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+    this._settings = settings;
     if (this.firebaseService.isCloudEnabled()) this.firebaseService.syncSettingsToCloud(settings);
   }
 
   getWorkGroups() {
-    const data = localStorage.getItem(STORAGE_KEYS.WORK_GROUPS);
-    if (!data) {
-        const def = this.workGroupsService.getAllGroups();
-        localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(def));
-        return def;
+    if (this._workGroups.length === 0) {
+        this._workGroups = this.workGroupsService.getAllGroups();
     }
-    return JSON.parse(data);
+    return this._workGroups;
   }
 
   saveWorkGroups(groups: any[]) {
-    localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(groups));
-    localStorage.setItem(STORAGE_KEYS.WORK_GROUPS_VER, WORK_GROUPS_VERSION);
+    this._workGroups = groups;
     if (this.firebaseService.isCloudEnabled()) this.firebaseService.syncWorkGroupsToCloud(groups);
     this.workGroupsUpdated.emit();
   }
