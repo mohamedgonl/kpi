@@ -134,16 +134,16 @@
         </tr>
         <tr class="pct-row">
             <td colspan="8" class="cell-right pct-label">Điểm tỷ lệ phần trăm (%)</td>
-            <td class="cell-center pct-val">{{ summary.pctQty.toFixed(1) }}%</td>
+            <td class="cell-center pct-val">{{ summary.pctQty.toFixed(2) }}%</td>
             <td colspan="2" class="cell-center"></td>
-            <td class="cell-center pct-val">{{ summary.pctProgress.toFixed(1) }}%</td>
+            <td class="cell-center pct-val">{{ summary.pctProgress.toFixed(2) }}%</td>
             <td class="cell-center"></td>
-            <td class="cell-center pct-val">{{ summary.pctQuality.toFixed(1) }}%</td>
+            <td class="cell-center pct-val">{{ summary.pctQuality.toFixed(2) }}%</td>
         </tr>
         <tr class="kpi-row">
             <td colspan="2" class="cell-right kpi-formula-label">Điểm đánh giá KPI =</td>
             <td colspan="4" class="cell-center kpi-formula">(a + b + c) / 3</td>
-            <td colspan="8" class="cell-left kpi-final-val">{{ summary.kpiScore.toFixed(1) }}%</td>
+            <td colspan="8" class="cell-left kpi-final-val">{{ summary.kpiScore.toFixed(2) }}%</td>
         </tr>
       </ng-container>
     </tbody>

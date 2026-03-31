@@ -203,23 +203,21 @@ export class DashboardComponent implements OnInit {
     const user = this.store.getUserById(userId);
     const exportTasks = this.store.getTasksByUserAndDateRange(userId, startDate, endDate);
 
-    const getTaskExcelGroup = (task: any) => {
-      if (task.itemId) {
-        const item = this.wgService.getItemById(task.itemId);
-        if (item && item.excelGroup) return item.excelGroup;
-      }
-      const gId = parseInt(task.groupId);
-      if (gId === 1) return 5;
-      if (gId === 2 || gId === 3) return 2;
-      if (gId === 5 || gId === 6) return 3;
-      if (gId === 7) return 1;
-      return 5;
-    };
-
     const groupedTasks: any = { 1: [], 2: [], 3: [], 4: [], 5: [] };
     exportTasks.forEach(t => {
-      const eg = getTaskExcelGroup(t);
+      const gId = parseInt(t.groupId);
+      const groupData = this.wgService.getGroupById(gId);
+      
+      let eg = 5;
+      if (t.itemId) {
+        const item = this.wgService.getItemById(t.itemId);
+        if (item && item.excelGroup) eg = item.excelGroup;
+      } else if (groupData && groupData.defaultExcelGroup) {
+        eg = groupData.defaultExcelGroup;
+      }
+      
       if (groupedTasks[eg]) groupedTasks[eg].push(t);
+      else groupedTasks[5].push(t);
     });
 
     const sheetData: any[] = [
@@ -246,7 +244,7 @@ export class DashboardComponent implements OnInit {
           totalCol14 += cols.qualityQtyConverted;
 
           sheetData.push([
-            globalStt++, eg, task.name, task.deadline || '', task.productType || '',
+            globalStt++, task.groupId, task.name, task.deadline || '', task.productType || '',
             task.coefficient || 1.0, task.assignedQty || 0, cols.assignedQtyConverted,
             task.actualQty || 0, cols.actualQtyConverted, task.completionDate || '',
             cols.delayDays, cols.progressQtyConverted, task.reworkCount || 0, cols.qualityQtyConverted,

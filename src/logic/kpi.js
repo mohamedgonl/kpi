@@ -96,17 +96,17 @@ export function computeKPIBreakdown(tasks) {
     const pendingTasks = totalTasks - completedTasks;
 
     return {
-        a: Math.round(a * 10) / 10,
-        b: Math.round(b * 10) / 10,
-        c: Math.round(c * 10) / 10,
-        kpi: Math.round(kpi * 10) / 10,
+        a: Math.round(a * 100) / 100,
+        b: Math.round(b * 100) / 100,
+        c: Math.round(c * 100) / 100,
+        kpi: Math.round(kpi * 100) / 100,
         totalTasks,
         completedTasks,
         pendingTasks,
         // Raw totals for report summary rows
-        totalCol7: Math.round(totalCol7 * 10) / 10,
-        totalCol9: Math.round(totalCol9 * 10) / 10,
-        totalCol12: Math.round(totalCol12 * 10) / 10,
-        totalCol14: Math.round(totalCol14 * 10) / 10,
+        totalCol7: Math.round(totalCol7 * 100) / 100,
+        totalCol9: Math.round(totalCol9 * 100) / 100,
+        totalCol12: Math.round(totalCol12 * 100) / 100,
+        totalCol14: Math.round(totalCol14 * 100) / 100,
     };
 }

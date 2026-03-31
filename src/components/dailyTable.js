@@ -11,8 +11,8 @@ import { getGroupById } from '../data/workGroups.js';
  */
 function fmt(n) {
     if (n === null || n === undefined || n === '') return '';
-    const val = Math.round(n * 10) / 10;
-    return val.toFixed(1).replace('.', ',');
+    const val = Math.round(n * 100) / 100;
+    return val.toFixed(2).replace('.', ',');
 }
 
 function escapeHtml(text) {
@@ -276,16 +276,16 @@ export function renderSummaryRows(tasks) {
     </tr>
     <tr class="pct-row">
       <td colspan="8" class="cell-right pct-label">Điểm tỷ lệ phần trăm (%)</td>
-      <td class="cell-center pct-val">${pctQty.toFixed(1)}%</td>
+      <td class="cell-center pct-val">${pctQty.toFixed(2)}%</td>
       <td colspan="2" class="cell-center"></td>
-      <td class="cell-center pct-val">${pctProgress.toFixed(1)}%</td>
+      <td class="cell-center pct-val">${pctProgress.toFixed(2)}%</td>
       <td class="cell-center"></td>
-      <td class="cell-center pct-val">${pctQuality.toFixed(1)}%</td>
+      <td class="cell-center pct-val">${pctQuality.toFixed(2)}%</td>
     </tr>
     <tr class="kpi-row">
       <td colspan="2" class="cell-right kpi-formula-label">Điểm đánh giá KPI =</td>
       <td colspan="4" class="cell-center kpi-formula">(a + b + c) / 3</td>
-      <td colspan="8" class="cell-left kpi-final-val">${kpiScore.toFixed(1)}%</td>
+      <td colspan="8" class="cell-left kpi-final-val">${kpiScore.toFixed(2)}%</td>
     </tr>
   `;
 }

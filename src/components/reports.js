@@ -278,8 +278,8 @@ export function renderReports(container) {
 
 function fmt(n) {
   if (n === null || n === undefined || n === '') return '';
-  const val = Math.round(n * 10) / 10;
-  return val.toFixed(1).replace('.', ',');
+  const val = Math.round(n * 100) / 100;
+  return val.toFixed(2).replace('.', ',');
 }
 
 function formatDate(dateStr) {
@@ -489,26 +489,22 @@ function exportReportToExcel(startDate, endDate, period, label) {
 
     const groupedTasks = { 1: [], 2: [], 3: [], 4: [], 5: [] };
     tasks.forEach(task => {
-      let eg = 5;
+      const gId = parseInt(task.groupId);
+      const groupData = getGroupById(gId);
+      
+      let eg = 5; // Mặc định
       if (task.itemId) {
         const item = getItemById(task.itemId);
-        if (item && item.excelGroup) {
-          eg = item.excelGroup;
-        } else {
-          const gId = parseInt(task.groupId);
-          if (gId === 1) eg = 5;
-          else if (gId === 2 || gId === 3) eg = 2;
-          else if (gId === 5 || gId === 6) eg = 3;
-          else if (gId === 7) eg = 1;
-        }
-      } else {
-        const gId = parseInt(task.groupId);
-        if (gId === 1) eg = 5;
-        else if (gId === 2 || gId === 3) eg = 2;
-        else if (gId === 5 || gId === 6) eg = 3;
-        else if (gId === 7) eg = 1;
+        if (item && item.excelGroup) eg = item.excelGroup;
+      } else if (groupData && groupData.defaultExcelGroup) {
+        eg = groupData.defaultExcelGroup;
       }
-      groupedTasks[eg].push(task);
+      
+      if (groupedTasks[eg]) {
+        groupedTasks[eg].push(task);
+      } else {
+        groupedTasks[5].push(task);
+      }
     });
 
     let tCol7 = 0, tCol9 = 0, tCol12 = 0, tCol14 = 0;
@@ -525,7 +521,7 @@ function exportReportToExcel(startDate, endDate, period, label) {
           tCol14 += cols.qualityQtyConverted;
 
           userData.push([
-            globalStt++, eg, task.name, task.deadline || '', task.productType || '',
+            globalStt++, task.groupId, task.name, task.deadline || '', task.productType || '',
             task.coefficient || 1.0, task.assignedQty || 0, cols.assignedQtyConverted,
             task.actualQty || 0, cols.actualQtyConverted, task.completionDate || '',
             cols.delayDays, cols.progressQtyConverted, task.reworkCount || 0, cols.qualityQtyConverted,

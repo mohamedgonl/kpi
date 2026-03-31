@@ -67,8 +67,8 @@ export class DailyTableComponent implements OnChanges {
 
   fmt(n: any): string {
     if (n === null || n === undefined || n === '') return '';
-    const val = Math.round(n * 10) / 10;
-    return val.toFixed(1).replace('.', ',');
+    const val = Math.round(n * 100) / 100;
+    return val.toFixed(2).replace('.', ',');
   }
 
   formatDate(dateStr: string): string {

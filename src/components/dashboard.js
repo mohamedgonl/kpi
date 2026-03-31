@@ -7,7 +7,7 @@ import { computeKPIBreakdown } from '../logic/kpi.js';
 import { renderDailyTable } from './dailyTable.js';
 import { renderWorkGroupCatalog } from './workGroupCatalog.js';
 import { showTaskForm } from './taskForm.js';
-import { getItemById } from '../data/workGroups.js';
+import { getItemById, getGroupById } from '../data/workGroups.js';
 import * as XLSX from 'xlsx';
 
 export function renderDashboard(container, userId, date) {
@@ -314,31 +314,21 @@ function exportUserExcel(userId, startDate, endDate, label) {
   const tasks = getTasksByUserAndDateRange(userId, startDate, endDate);
 
   // Helper to assign Excel Group (1-5) based on internal Group ID (1-7)
-  const getTaskExcelGroup = (task) => {
-    if (task.itemId) {
-      const item = getItemById(task.itemId);
-      if (item && item.excelGroup) return item.excelGroup;
-    }
-    const gId = parseInt(task.groupId);
-    if (gId === 1) return 5;
-    if (gId === 2 || gId === 3) return 2;
-    if (gId === 5 || gId === 6) return 3;
-    if (gId === 7) return 1;
-    return 5;
-  };
-
-  const excelGroupNames = {
-    1: 'Group 1 (Nhóm 1, 2, 3)',
-    2: 'Group 2 (Nhóm 4)',
-    3: 'Group 3 (Nhóm 5)',
-    4: 'Group 4 (Nhóm 6)',
-    5: 'Group 5 (Nhóm 7)',
-  };
-
   const groupedTasks = { 1: [], 2: [], 3: [], 4: [], 5: [] };
   tasks.forEach(t => {
-    const eg = getTaskExcelGroup(t);
+    const gId = parseInt(t.groupId);
+    const groupData = getGroupById(gId);
+    
+    let eg = 5;
+    if (t.itemId) {
+      const item = getItemById(t.itemId);
+      if (item && item.excelGroup) eg = item.excelGroup;
+    } else if (groupData && groupData.defaultExcelGroup) {
+      eg = groupData.defaultExcelGroup;
+    }
+    
     if (groupedTasks[eg]) groupedTasks[eg].push(t);
+    else groupedTasks[5].push(t);
   });
 
   // Build 14-column sheet -> now 15 column with 'Nhóm'
@@ -348,7 +338,6 @@ function exportUserExcel(userId, startDate, endDate, label) {
     ['Khoảng thời gian:', `${startDate} đến ${endDate}`],
     ['Ngày xuất:', new Date().toISOString().split('T')[0]],
     [],
-    // Multi-level headers
     ['STT', 'Nhóm', 'Nội dung nhiệm vụ', 'Ngày hết hạn', 'Sản phẩm CV', 'Hệ số QĐ', 'SL giao', 'SL giao QĐ',
       'SL HT thực tế', 'SL HT QĐ', 'Ngày HT', 'Ngày chậm', 'SL đạt TĐ QĐ', 'Số lần làm lại', 'SL đạt CL QĐ'],
   ];
@@ -368,7 +357,7 @@ function exportUserExcel(userId, startDate, endDate, label) {
 
         sheetData.push([
           globalStt++,
-          eg,
+          task.groupId,
           task.name,
           task.deadline || '',
           task.productType || '',
@@ -395,7 +384,7 @@ function exportUserExcel(userId, startDate, endDate, label) {
 
   sheetData.push([]);
   sheetData.push(['', '', '', '', '', '', 'Tổng cộng', totalCol7, '', totalCol9, '', '', totalCol12, '', totalCol14]);
-  sheetData.push(['', '', '', '', '', '', '', '', 'Tỷ lệ %', `${pctQty.toFixed(1)}%`, '', '', `${pctProgress.toFixed(1)}%`, '', `${pctQuality.toFixed(1)}%`]);
+  sheetData.push(['', '', '', '', '', '', '', '', 'Tỷ lệ %', `${pctQty.toFixed(1)}%`, '', `${pctProgress.toFixed(1)}%`, '', `${pctQuality.toFixed(1)}%`]);
   sheetData.push(['', 'Điểm KPI =', '(a + b + c) / 3', '', '', '', '', '', '', `${kpiScore.toFixed(1)}%`]);
 
   const ws = XLSX.utils.aoa_to_sheet(sheetData);
@@ -448,11 +437,11 @@ function computeTaskColumnsLocal(task) {
   const reworkCount = task.reworkCount || 0;
   const col14 = reworkCount > 0 ? Math.max(0, col9 - 0.25 * col9) : col9;
   return {
-    assignedQtyConverted: Math.round(col7 * 10) / 10,
-    actualQtyConverted: Math.round(col9 * 10) / 10,
+    assignedQtyConverted: Math.round(col7 * 100) / 100,
+    actualQtyConverted: Math.round(col9 * 100) / 100,
     delayDays: col11,
-    progressQtyConverted: Math.round(col12 * 10) / 10,
-    qualityQtyConverted: Math.round(col14 * 10) / 10,
+    progressQtyConverted: Math.round(col12 * 100) / 100,
+    qualityQtyConverted: Math.round(col14 * 100) / 100,
   };
 }
 

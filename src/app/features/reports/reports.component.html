@@ -37,10 +37,10 @@
         <td style="font-weight:600">{{ row.name }}</td>
         <td>{{ row.kpi.totalTasks }}</td>
         <td>{{ row.kpi.completedTasks }}</td>
-        <td>{{ (row.kpi.a | number:'1.1-1') }}%</td>
-        <td>{{ (row.kpi.b | number:'1.1-1') }}%</td>
-        <td>{{ (row.kpi.c | number:'1.1-1') }}%</td>
-        <td><span class="kpi-value" [ngClass]="row.kpiClass">{{ (row.kpi.kpi | number:'1.1-1') }}%</span></td>
+        <td>{{ (row.kpi.a | number:'1.2-2') }}%</td>
+        <td>{{ (row.kpi.b | number:'1.2-2') }}%</td>
+        <td>{{ (row.kpi.c | number:'1.2-2') }}%</td>
+        <td><span class="kpi-value" [ngClass]="row.kpiClass">{{ (row.kpi.kpi | number:'1.2-2') }}%</span></td>
       </tr>
     </tbody>
   </table>

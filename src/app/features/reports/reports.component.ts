@@ -334,18 +334,22 @@ export class ReportsComponent implements OnInit, AfterViewInit {
 
       const groupedTasks: any = { 1: [], 2: [], 3: [], 4: [], 5: [] };
       tasks.forEach(task => {
-        let eg = 5;
+        const gId = parseInt(task.groupId);
+        const group = this.wgService.getGroupById(gId);
+        
+        let eg = 5; // Mặc định
         if (task.itemId) {
           const item = this.wgService.getItemById(task.itemId);
           if (item && item.excelGroup) eg = item.excelGroup;
-        } else {
-          const gId = parseInt(task.groupId);
-          if (gId === 1) eg = 5;
-          else if (gId === 2 || gId === 3) eg = 2;
-          else if (gId === 5 || gId === 6) eg = 3;
-          else if (gId === 7) eg = 1;
+        } else if (group && group.defaultExcelGroup) {
+          eg = group.defaultExcelGroup;
         }
-        groupedTasks[eg].push(task);
+        
+        if (groupedTasks[eg]) {
+          groupedTasks[eg].push(task);
+        } else {
+          groupedTasks[5].push(task); // Fallback vào nhóm 5 nếu không khớp
+        }
       });
 
       let tCol7 = 0, tCol9 = 0, tCol12 = 0, tCol14 = 0;
@@ -362,7 +366,7 @@ export class ReportsComponent implements OnInit, AfterViewInit {
             tCol14 += cols.qualityQtyConverted;
 
             userData.push([
-              globalStt++, eg, task.name, task.deadline || '', task.productType || '',
+              globalStt++, task.groupId, task.name, task.deadline || '', task.productType || '',
               task.coefficient || 1.0, task.assignedQty || 0, cols.assignedQtyConverted,
               task.actualQty || 0, cols.actualQtyConverted, task.completionDate || '',
               cols.delayDays, cols.progressQtyConverted, task.reworkCount || 0, cols.qualityQtyConverted,
