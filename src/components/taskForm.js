@@ -82,7 +82,7 @@ export function showTaskForm(groupId, userId, date, existingTask = null) {
             </div>
             ${!existingTask ? `
             <div class="form-group">
-              <label>Chỉ đạo lãnh đạo (Tùy chọn)</label>
+              <label>Lãnh đạo chỉ đạo (Tùy chọn)</label>
               <select id="taskLeaderSelect">
                 <option value="">— Không có —</option>
                 <option value="1">Ngô Đức Minh</option>
