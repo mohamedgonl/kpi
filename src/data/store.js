@@ -1,22 +1,22 @@
 /**
  * Data Store with Cloud Sync
- * localStorage as primary + Firebase Realtime Database for cross-device sync
- * When Firebase is configured, all writes go to both local and cloud
+ * In-memory cache + Firebase Realtime Database for cross-device sync.
+ *
+ * Writes are sent per-record (push/update/remove on `tasks/{id}` etc.) instead
+ * of replacing the whole collection. Reads use child-event listeners so each
+ * change downloads only the affected record.
  */
 import {
     initFirebase, isCloudEnabled,
-    syncTasksToCloud, syncUsersToCloud, syncSettingsToCloud, syncWorkGroupsToCloud,
-    pullAllFromCloud, listenForTasks, listenForUsers, listenForWorkGroups
+    pushTask, updateTaskFields, removeTaskCloud, setAllTasks,
+    pushUser, updateUserFields, setAllUsers,
+    pushWorkGroup, setAllWorkGroups,
+    syncSettingsToCloud,
+    pullAllFromCloud,
+    listenForTaskChanges, listenForUserChanges, listenForWorkGroupChanges,
+    migrateToKeyedFormat
 } from './firebase.js';
 import { DEFAULT_WORK_GROUPS, WORK_GROUPS_VERSION } from './workGroups.js';
-
-const STORAGE_KEYS = {
-    USERS: 'kpi_users',
-    TASKS: 'kpi_tasks',
-    SETTINGS: 'kpi_settings',
-    WORK_GROUPS: 'kpi_work_groups',
-    WORK_GROUPS_VER: 'kpi_work_groups_version'
-};
 
 // In-memory data cache
 let _users = [];
@@ -24,32 +24,45 @@ let _tasks = [];
 let _settings = { theme: 'dark', language: 'vi' };
 let _workGroups = [];
 
-// Track cloud sync state
 let cloudSyncActive = false;
-let cloudInitialized = false;
+
+// ===================== REFRESH DISPATCH (debounced) =====================
+// Child events arrive one-per-record. During initial sync that can be hundreds
+// of events back-to-back; coalesce into a single UI refresh.
+
+let _refreshTimer = null;
+const _pendingRefresh = new Set();
+
+function scheduleRefresh(eventName) {
+    _pendingRefresh.add(eventName);
+    if (_refreshTimer) return;
+    _refreshTimer = setTimeout(() => {
+        const events = Array.from(_pendingRefresh);
+        _pendingRefresh.clear();
+        _refreshTimer = null;
+        events.forEach(name => window.dispatchEvent(new CustomEvent(name)));
+    }, 150);
+}
 
 // ===================== CLOUD INIT =====================
 
-/**
- * Initialize cloud sync — call once at app start
- * Will pull cloud data if available, then listen for real-time changes
- */
 export async function initCloudSync() {
-    const ok = initFirebase();
-    cloudInitialized = true;
-
+    const ok = await initFirebase();
     if (!ok) {
         console.warn('[Store] Firebase not available. Running with defaults.');
         return false;
     }
 
     try {
+        // One-time data shape migration (array → keyed-by-id). No-op after first run.
+        await migrateToKeyedFormat();
+
         const cloudData = await pullAllFromCloud();
-        if (cloudData) {
+        if (cloudData && (cloudData.users || cloudData.tasks || cloudData.workGroups)) {
             if (cloudData.users) _users = cloudData.users;
             if (cloudData.tasks) _tasks = cloudData.tasks;
             if (cloudData.settings) _settings = cloudData.settings;
-            
+
             if (cloudData.workGroups && cloudData.workGroups.length > 0) {
                 const currentVer = cloudData.settings?.workGroupsVersion || '1.0';
                 if (currentVer !== WORK_GROUPS_VERSION) {
@@ -63,49 +76,97 @@ export async function initCloudSync() {
                 _workGroups = DEFAULT_WORK_GROUPS;
                 saveWorkGroups(_workGroups);
             }
-            
+
             console.log('[Store] Cloud data loaded');
-            window.dispatchEvent(new CustomEvent('refreshDashboard'));
         } else {
-            // First run - initialization
+            // First run for this database — seed defaults.
             _users = getDefaultUsers();
             _tasks = [];
             _settings = { theme: 'dark', language: 'vi', workGroupsVersion: WORK_GROUPS_VERSION };
             _workGroups = DEFAULT_WORK_GROUPS;
-            
-            await syncUsersToCloud(_users);
-            await syncTasksToCloud(_tasks);
-            await syncSettingsToCloud(_settings);
-            await syncWorkGroupsToCloud(_workGroups);
+
+            await Promise.all([
+                setAllUsers(_users),
+                setAllTasks(_tasks),
+                syncSettingsToCloud(_settings),
+                setAllWorkGroups(_workGroups)
+            ]);
             console.log('[Store] Initial data pushed to cloud');
         }
 
-        // Set up real-time listeners
-        listenForTasks((tasks) => {
-            if (tasks) {
-                _tasks = tasks;
+        // Real-time listeners (child events — only deltas, not full collections)
+        listenForTaskChanges({
+            onAdded: (task) => {
+                if (!task || task.id == null) return;
+                const idx = _tasks.findIndex(t => t.id === task.id);
+                if (idx === -1) _tasks.push(task);
+                else _tasks[idx] = task;
                 taskIdCounter = null;
-                window.dispatchEvent(new CustomEvent('refreshDashboard'));
+                scheduleRefresh('refreshDashboard');
+            },
+            onChanged: (task) => {
+                if (!task || task.id == null) return;
+                const idx = _tasks.findIndex(t => t.id === task.id);
+                if (idx !== -1) _tasks[idx] = task;
+                else _tasks.push(task);
+                scheduleRefresh('refreshDashboard');
+            },
+            onRemoved: (key) => {
+                const id = Number(key);
+                _tasks = _tasks.filter(t => t.id !== id);
+                scheduleRefresh('refreshDashboard');
             }
         });
 
-        listenForUsers((users) => {
-            if (users) {
-                _users = users;
-                window.dispatchEvent(new CustomEvent('usersUpdated'));
+        listenForUserChanges({
+            onAdded: (user) => {
+                if (!user || user.id == null) return;
+                const idx = _users.findIndex(u => u.id === user.id);
+                if (idx === -1) _users.push(user);
+                else _users[idx] = user;
+                scheduleRefresh('usersUpdated');
+            },
+            onChanged: (user) => {
+                if (!user || user.id == null) return;
+                const idx = _users.findIndex(u => u.id === user.id);
+                if (idx !== -1) _users[idx] = user;
+                else _users.push(user);
+                scheduleRefresh('usersUpdated');
+            },
+            onRemoved: (key) => {
+                const id = Number(key);
+                _users = _users.filter(u => u.id !== id);
+                scheduleRefresh('usersUpdated');
             }
         });
 
-        listenForWorkGroups((groups) => {
-            if (groups) {
-                _workGroups = groups;
-                window.dispatchEvent(new CustomEvent('workGroupsUpdated'));
-                window.dispatchEvent(new CustomEvent('refreshDashboard'));
+        listenForWorkGroupChanges({
+            onAdded: (group) => {
+                if (!group || group.id == null) return;
+                const idx = _workGroups.findIndex(g => g.id === group.id);
+                if (idx === -1) _workGroups.push(group);
+                else _workGroups[idx] = group;
+                scheduleRefresh('workGroupsUpdated');
+                scheduleRefresh('refreshDashboard');
+            },
+            onChanged: (group) => {
+                if (!group || group.id == null) return;
+                const idx = _workGroups.findIndex(g => g.id === group.id);
+                if (idx !== -1) _workGroups[idx] = group;
+                else _workGroups.push(group);
+                scheduleRefresh('workGroupsUpdated');
+                scheduleRefresh('refreshDashboard');
+            },
+            onRemoved: (key) => {
+                const id = isNaN(Number(key)) ? key : Number(key);
+                _workGroups = _workGroups.filter(g => g.id !== id);
+                scheduleRefresh('workGroupsUpdated');
+                scheduleRefresh('refreshDashboard');
             }
         });
 
         cloudSyncActive = true;
-        console.log('[Store] Pure Cloud Sync active');
+        console.log('[Store] Cloud sync active (delta mode)');
         return true;
     } catch (error) {
         console.error('[Store] Cloud sync init error:', error);
@@ -158,22 +219,26 @@ export function getUsers() {
     if (_users.length === 0) {
         _users = getDefaultUsers();
     }
-    
-    const defaults = getDefaultUsers();
-    let updated = false;
-
-    _users.forEach(u => {
-        if (!u.role) { u.role = u.id <= 5 ? 'admin' : 'user'; updated = true; }
-        if (!u.password) { u.password = '123456'; updated = true; }
-    });
-    
-    if (updated) saveUsers(_users);
     return _users;
 }
 
+/**
+ * Bulk replace users — used by Settings UI when admin edits names.
+ * Diffs against current cache and only writes records that actually changed.
+ */
 export function saveUsers(users) {
+    const before = new Map(_users.map(u => [u.id, u]));
     _users = users;
-    if (isCloudEnabled()) syncUsersToCloud(users);
+    if (!isCloudEnabled()) return;
+
+    users.forEach(u => {
+        const prev = before.get(u.id);
+        if (!prev) {
+            pushUser(u);
+        } else if (JSON.stringify(prev) !== JSON.stringify(u)) {
+            pushUser(u);
+        }
+    });
 }
 
 export function getUserById(id) {
@@ -185,7 +250,7 @@ export function updateUserPassword(userId, newPassword) {
     const index = users.findIndex(u => u.id === userId);
     if (index !== -1) {
         users[index].password = newPassword;
-        saveUsers(users);
+        if (isCloudEnabled()) updateUserFields(userId, { password: newPassword });
         return true;
     }
     return false;
@@ -211,9 +276,14 @@ export function getTasks() {
     return getRawTasks().filter(t => t.is_deleted === 0);
 }
 
+/**
+ * Bulk replace — only used by import and "clear all". Writes a single set on
+ * the parent node. Per-task changes should go through addTask/updateTask/deleteTask.
+ */
 export function saveTasks(tasks) {
     _tasks = tasks;
-    if (isCloudEnabled()) syncTasksToCloud(tasks);
+    taskIdCounter = null;
+    if (isCloudEnabled()) setAllTasks(tasks);
 }
 
 export function addTask(task, isAutoAssign = false) {
@@ -223,7 +293,6 @@ export function addTask(task, isAutoAssign = false) {
         return null;
     }
 
-    const tasks = getRawTasks();
     const newTask = {
         id: getNextId(),
         name: task.name,
@@ -246,35 +315,27 @@ export function addTask(task, isAutoAssign = false) {
         createdAt: new Date().toISOString(),
         is_deleted: 0
     };
-    tasks.push(newTask);
+    _tasks.push(newTask);
     console.log(`[Store] Created task ID ${newTask.id} for user ${newTask.userId}`);
-    saveTasks(tasks);
+    if (isCloudEnabled()) pushTask(newTask);
     return newTask;
 }
 
-export function updateTask(id, updates, skipSync = false) {
-    const tasks = getRawTasks();
-    const index = tasks.findIndex(t => t.id === id);
-    if (index !== -1) {
-        tasks[index] = { ...tasks[index], ...updates };
-        saveTasks(tasks);
-        return tasks[index];
-    }
-    return null;
+export function updateTask(id, updates) {
+    const index = _tasks.findIndex(t => t.id === id);
+    if (index === -1) return null;
+    _tasks[index] = { ..._tasks[index], ...updates };
+    if (isCloudEnabled()) updateTaskFields(id, updates);
+    return _tasks[index];
 }
 
-/**
- * Sync evaluation fields from a task to its linked leader/specialist task.
- * Call after updating evaluation-related fields on a task.
- */
 const SYNC_FIELDS = ['actualQty', 'completionDate', 'reworkCount', 'status', 'qualityScore', 'progressScore'];
 
 export function syncLinkedTask(taskId) {
-    const tasks = getRawTasks();
-    const task = tasks.find(t => t.id === taskId);
+    const task = _tasks.find(t => t.id === taskId);
     if (!task || !task.linkedTaskId) return;
 
-    const linkedTask = tasks.find(t => t.id === task.linkedTaskId);
+    const linkedTask = _tasks.find(t => t.id === task.linkedTaskId);
     if (!linkedTask) return;
 
     const syncUpdates = {};
@@ -285,7 +346,7 @@ export function syncLinkedTask(taskId) {
     });
 
     console.log(`[Store] Syncing task ${taskId} → linked task ${task.linkedTaskId}`, syncUpdates);
-    updateTask(task.linkedTaskId, syncUpdates, true);
+    updateTask(task.linkedTaskId, syncUpdates);
 }
 
 export function deleteTask(id) {
@@ -363,9 +424,30 @@ export function getWorkGroups() {
     return _workGroups;
 }
 
+/**
+ * Bulk replace work groups — rare operation (admin edits JSON in Settings).
+ * Diffs and only writes records that actually changed.
+ */
 export function saveWorkGroups(groups) {
+    const before = new Map(_workGroups.map(g => [g.id, g]));
     _workGroups = groups;
-    if (isCloudEnabled()) syncWorkGroupsToCloud(groups);
+
+    if (isCloudEnabled()) {
+        const incomingIds = new Set(groups.map(g => g.id));
+        const hasRemovals = [...before.keys()].some(id => !incomingIds.has(id));
+
+        if (hasRemovals) {
+            // Removals require a full replace so dropped keys are cleared.
+            setAllWorkGroups(groups);
+        } else {
+            groups.forEach(g => {
+                const prev = before.get(g.id);
+                if (!prev || JSON.stringify(prev) !== JSON.stringify(g)) {
+                    pushWorkGroup(g);
+                }
+            });
+        }
+    }
     window.dispatchEvent(new CustomEvent('workGroupsUpdated'));
 }
 
@@ -396,22 +478,15 @@ export function setLoggedInUser(id) {
 export function importAllData(jsonString) {
     try {
         const data = JSON.parse(jsonString);
-        if (data.users) {
-            localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(data.users));
-            if (isCloudEnabled()) syncUsersToCloud(data.users);
-        }
-        if (data.tasks) {
-            localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(data.tasks));
-            if (isCloudEnabled()) syncTasksToCloud(data.tasks);
-        }
-        if (data.settings) {
-            localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(data.settings));
-            if (isCloudEnabled()) syncSettingsToCloud(data.settings);
-        }
-        if (data.workGroups) {
-            localStorage.setItem(STORAGE_KEYS.WORK_GROUPS, JSON.stringify(data.workGroups));
-            if (isCloudEnabled()) syncWorkGroupsToCloud(data.workGroups);
-        }
+        if (data.users && isCloudEnabled()) setAllUsers(data.users);
+        if (data.tasks && isCloudEnabled()) setAllTasks(data.tasks);
+        if (data.settings && isCloudEnabled()) syncSettingsToCloud(data.settings);
+        if (data.workGroups && isCloudEnabled()) setAllWorkGroups(data.workGroups);
+
+        if (data.users) _users = data.users;
+        if (data.tasks) _tasks = data.tasks;
+        if (data.settings) _settings = data.settings;
+        if (data.workGroups) _workGroups = data.workGroups;
         taskIdCounter = null;
         return true;
     } catch (e) {

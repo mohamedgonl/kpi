@@ -2,51 +2,61 @@
  * Firebase Configuration and Real-time Database Module
  * Provides cloud data sync for cross-device access
  *
- * SETUP INSTRUCTIONS:
- * 1. Go to https://console.firebase.google.com/
- * 2. Create a new project (or use existing)
- * 3. Enable Realtime Database
- * 4. Copy your project config and replace the placeholder below
- * 5. Set database rules (see bottom of this file)
+ * BANDWIDTH-OPTIMIZED:
+ * - Writes happen per-record at `tasks/{id}` etc., not as a full-array set on the parent node.
+ * - Listeners are child-event based (added/changed/removed) so each change downloads only the
+ *   affected record instead of the whole collection.
  */
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, set, get, onValue, update, remove } from 'firebase/database';
+import {
+    getDatabase, ref, set, get, onValue, update, remove,
+    onChildAdded, onChildChanged, onChildRemoved
+} from 'firebase/database';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 
-// ============================================================
-// FIREBASE CONFIG — Replace with your project's config
-// ============================================================
 const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBnBvHHFMnnaHoPYUXs-2zUR2g1l6jLHfU",
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "kpi-dun.firebaseapp.com",
-    databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || "https://kpi-dun-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "kpi-dun",
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "kpi-dun.firebasestorage.app",
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1085391599947",
-    appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1085391599947:web:55dab3afa7e71f82ff10ce",
-    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-LZGGL975YQ"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 let app = null;
 let db = null;
+let auth = null;
+let currentAuthUid = null;
 let isFirebaseEnabled = false;
 let listeners = {};
 
 /**
- * Initialize Firebase — call once at app start
- * Returns true if Firebase is properly configured, false otherwise
+ * Initialize Firebase + sign in anonymously. Returns true only after auth
+ * succeeds, so subsequent reads/writes don't hit PERMISSION_DENIED under
+ * `auth != null` rules.
  */
-export function initFirebase() {
+export async function initFirebase() {
     try {
         if (!firebaseConfig.apiKey || firebaseConfig.apiKey === 'YOUR_API_KEY') {
             console.warn('[Firebase] Not configured. Please set your environment variables in .env');
             isFirebaseEnabled = false;
             return false;
         }
-
         app = initializeApp(firebaseConfig);
         db = getDatabase(app);
+        auth = getAuth(app);
+
+        onAuthStateChanged(auth, (user) => {
+            currentAuthUid = user ? user.uid : null;
+        });
+
+        const cred = await signInAnonymously(auth);
+        currentAuthUid = cred.user.uid;
+
         isFirebaseEnabled = true;
-        console.log('[Firebase] Initialized successfully');
+        console.log('[Firebase] Initialized + anonymous auth ready', { uid: currentAuthUid });
         return true;
     } catch (error) {
         console.error('[Firebase] Initialization failed:', error);
@@ -55,20 +65,18 @@ export function initFirebase() {
     }
 }
 
-/**
- * Check if Firebase is enabled and configured
- */
 export function isCloudEnabled() {
-    return isFirebaseEnabled && db !== null;
+    return isFirebaseEnabled && db !== null && currentAuthUid !== null;
+}
+
+export function getAuthUid() {
+    return currentAuthUid;
 }
 
 // ============================================================
-// DATA OPERATIONS
+// LOW-LEVEL OPERATIONS
 // ============================================================
 
-/**
- * Save data to Firebase path
- */
 export async function cloudSet(path, data) {
     if (!isCloudEnabled()) return false;
     try {
@@ -80,9 +88,6 @@ export async function cloudSet(path, data) {
     }
 }
 
-/**
- * Read data from Firebase path (one-time)
- */
 export async function cloudGet(path) {
     if (!isCloudEnabled()) return null;
     try {
@@ -94,9 +99,6 @@ export async function cloudGet(path) {
     }
 }
 
-/**
- * Update specific fields at a Firebase path
- */
 export async function cloudUpdate(path, updates) {
     if (!isCloudEnabled()) return false;
     try {
@@ -108,9 +110,6 @@ export async function cloudUpdate(path, updates) {
     }
 }
 
-/**
- * Delete data at a Firebase path
- */
 export async function cloudRemove(path) {
     if (!isCloudEnabled()) return false;
     try {
@@ -122,10 +121,6 @@ export async function cloudRemove(path) {
     }
 }
 
-/**
- * Listen for real-time changes at a Firebase path
- * Returns an unsubscribe function
- */
 export function cloudListen(path, callback) {
     if (!isCloudEnabled()) return () => { };
     const dbRef = ref(db, path);
@@ -134,15 +129,10 @@ export function cloudListen(path, callback) {
     }, (error) => {
         console.error(`[Firebase] Listen error on ${path}:`, error);
     });
-
-    // Store for cleanup
     listeners[path] = unsubscribe;
     return unsubscribe;
 }
 
-/**
- * Remove all active listeners
- */
 export function cloudCleanup() {
     Object.values(listeners).forEach(unsub => {
         if (typeof unsub === 'function') unsub();
@@ -151,33 +141,54 @@ export function cloudCleanup() {
 }
 
 // ============================================================
-// SYNC HELPERS — for store.js integration
+// MIGRATION — convert legacy array-shaped collections to objects
+// keyed by record id. Run once; flagged via /_meta/keyedById.
 // ============================================================
 
-/**
- * Sync all tasks to cloud
- */
-export async function syncTasksToCloud(tasks) {
-    return cloudSet('tasks', tasks);
+function arrayToKeyedObject(value) {
+    if (!value) return {};
+    const arr = Array.isArray(value) ? value : Object.values(value);
+    const obj = {};
+    arr.forEach(item => {
+        if (item && item.id != null) obj[String(item.id)] = item;
+    });
+    return obj;
 }
 
-/**
- * Sync all users to cloud
- */
-export async function syncUsersToCloud(users) {
-    return cloudSet('users', users);
+export async function migrateToKeyedFormat() {
+    if (!isCloudEnabled()) return false;
+    try {
+        const meta = await cloudGet('_meta');
+        if (meta && meta.keyedById) return true;
+
+        const [tasksRaw, usersRaw, wgRaw] = await Promise.all([
+            cloudGet('tasks'),
+            cloudGet('users'),
+            cloudGet('workGroups')
+        ]);
+
+        const ops = [];
+        if (tasksRaw) ops.push(cloudSet('tasks', arrayToKeyedObject(tasksRaw)));
+        if (usersRaw) ops.push(cloudSet('users', arrayToKeyedObject(usersRaw)));
+        if (wgRaw) ops.push(cloudSet('workGroups', arrayToKeyedObject(wgRaw)));
+        await Promise.all(ops);
+
+        await cloudSet('_meta', {
+            keyedById: true,
+            migratedAt: new Date().toISOString()
+        });
+        console.log('[Firebase] Migrated cloud data to keyed-by-id format');
+        return true;
+    } catch (error) {
+        console.error('[Firebase] Migration failed:', error);
+        return false;
+    }
 }
 
-/**
- * Sync settings to cloud
- */
-export async function syncSettingsToCloud(settings) {
-    return cloudSet('settings', settings);
-}
+// ============================================================
+// PULL HELPERS — used on initial app load only
+// ============================================================
 
-/**
- * Pull all data from cloud (for initial load)
- */
 export async function pullAllFromCloud() {
     if (!isCloudEnabled()) return null;
     try {
@@ -188,10 +199,10 @@ export async function pullAllFromCloud() {
             cloudGet('workGroups'),
         ]);
         return {
-            tasks: tasks ? (Array.isArray(tasks) ? tasks : Object.values(tasks)) : null,
-            users: users ? (Array.isArray(users) ? users : Object.values(users)) : null,
+            tasks: tasks ? Object.values(tasks) : null,
+            users: users ? Object.values(users) : null,
             settings: settings || null,
-            workGroups: workGroups ? (Array.isArray(workGroups) ? workGroups : Object.values(workGroups)) : null,
+            workGroups: workGroups ? Object.values(workGroups) : null,
         };
     } catch (error) {
         console.error('[Firebase] Pull all failed:', error);
@@ -199,46 +210,112 @@ export async function pullAllFromCloud() {
     }
 }
 
-/**
- * Listen for real-time task changes
- */
-let taskDebounceTimer = null;
+// ============================================================
+// TASKS — per-record writes
+// ============================================================
 
-export function listenForTasks(callback) {
-    return cloudListen('tasks', (data) => {
-        if (taskDebounceTimer) clearTimeout(taskDebounceTimer);
-        taskDebounceTimer = setTimeout(() => {
-            const tasks = data ? (Array.isArray(data) ? data : Object.values(data)) : [];
-            callback(tasks);
-        }, 500);
-    });
+export async function pushTask(task) {
+    if (!isCloudEnabled() || !task || task.id == null) return false;
+    return cloudSet(`tasks/${task.id}`, task);
+}
+
+export async function updateTaskFields(taskId, updates) {
+    if (!isCloudEnabled() || taskId == null) return false;
+    return cloudUpdate(`tasks/${taskId}`, updates);
+}
+
+export async function removeTaskCloud(taskId) {
+    if (!isCloudEnabled() || taskId == null) return false;
+    return cloudRemove(`tasks/${taskId}`);
 }
 
 /**
- * Listen for real-time user changes
+ * Bulk replace — used for import and "clear all". Converts array to keyed object.
  */
-export function listenForUsers(callback) {
-    return cloudListen('users', (data) => {
-        const users = data ? (Array.isArray(data) ? data : Object.values(data)) : [];
-        callback(users);
-    });
+export async function setAllTasks(tasks) {
+    if (!isCloudEnabled()) return false;
+    const payload = Array.isArray(tasks) ? arrayToKeyedObject(tasks) : tasks;
+    return cloudSet('tasks', payload || {});
 }
 
-/**
- * Sync work groups to cloud
- */
-export async function syncWorkGroupsToCloud(groups) {
-    return cloudSet('workGroups', groups);
+// ============================================================
+// USERS — per-record writes
+// ============================================================
+
+export async function pushUser(user) {
+    if (!isCloudEnabled() || !user || user.id == null) return false;
+    return cloudSet(`users/${user.id}`, user);
 }
 
-/**
- * Listen for real-time work groups changes
- */
-export function listenForWorkGroups(callback) {
-    return cloudListen('workGroups', (data) => {
-        const groups = data ? (Array.isArray(data) ? data : Object.values(data)) : [];
-        callback(groups);
-    });
+export async function updateUserFields(userId, updates) {
+    if (!isCloudEnabled() || userId == null) return false;
+    return cloudUpdate(`users/${userId}`, updates);
+}
+
+export async function setAllUsers(users) {
+    if (!isCloudEnabled()) return false;
+    const payload = Array.isArray(users) ? arrayToKeyedObject(users) : users;
+    return cloudSet('users', payload || {});
+}
+
+// ============================================================
+// WORK GROUPS — per-record writes
+// ============================================================
+
+export async function pushWorkGroup(group) {
+    if (!isCloudEnabled() || !group || group.id == null) return false;
+    return cloudSet(`workGroups/${group.id}`, group);
+}
+
+export async function setAllWorkGroups(groups) {
+    if (!isCloudEnabled()) return false;
+    const payload = Array.isArray(groups) ? arrayToKeyedObject(groups) : groups;
+    return cloudSet('workGroups', payload || {});
+}
+
+// ============================================================
+// SETTINGS — single object, kept as-is (small + rarely written)
+// ============================================================
+
+export async function syncSettingsToCloud(settings) {
+    return cloudSet('settings', settings);
+}
+
+// ============================================================
+// CHILD-EVENT LISTENERS — bandwidth-efficient real-time sync
+// Each child event downloads only the changed record, not the
+// whole collection.
+// ============================================================
+
+function listenChildren(path, { onAdded, onChanged, onRemoved }) {
+    if (!isCloudEnabled()) return () => { };
+    const collRef = ref(db, path);
+    const u1 = onChildAdded(collRef, (snap) => {
+        const val = snap.val();
+        if (val && onAdded) onAdded(val, snap.key);
+    }, (e) => console.error(`[Firebase] childAdded error on ${path}:`, e));
+    const u2 = onChildChanged(collRef, (snap) => {
+        const val = snap.val();
+        if (val && onChanged) onChanged(val, snap.key);
+    }, (e) => console.error(`[Firebase] childChanged error on ${path}:`, e));
+    const u3 = onChildRemoved(collRef, (snap) => {
+        if (onRemoved) onRemoved(snap.key);
+    }, (e) => console.error(`[Firebase] childRemoved error on ${path}:`, e));
+    const unsub = () => { u1(); u2(); u3(); };
+    listeners[path] = unsub;
+    return unsub;
+}
+
+export function listenForTaskChanges(handlers) {
+    return listenChildren('tasks', handlers);
+}
+
+export function listenForUserChanges(handlers) {
+    return listenChildren('users', handlers);
+}
+
+export function listenForWorkGroupChanges(handlers) {
+    return listenChildren('workGroups', handlers);
 }
 
 // ============================================================
@@ -261,14 +338,6 @@ export function listenForWorkGroups(callback) {
       ".read": "auth != null",
       ".write": "auth != null"
     }
-  }
-}
-
-For development/testing without auth, use:
-{
-  "rules": {
-    ".read": true,
-    ".write": true
   }
 }
 */
