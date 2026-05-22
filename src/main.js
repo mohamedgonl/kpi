@@ -6,7 +6,7 @@ import './styles/main.css';
 import { getUsers, getLoggedInUser, setLoggedInUser, initCloudSync, isCloudSyncActive } from './data/store.js';
 import { renderDashboard } from './components/dashboard.js';
 import { renderReports } from './components/reports.js';
-import { renderSettings } from './components/settings.js';
+// import { renderSettings } from './components/settings.js'; // Settings page disabled
 import { startNotificationCheck } from './components/notification.js';
 
 // ===================== STATE =====================
@@ -130,9 +130,9 @@ function refreshCurrentPage() {
     case 'reports':
       renderReports(document.getElementById('page-reports'));
       break;
-    case 'settings':
-      renderSettings(document.getElementById('page-settings'));
-      break;
+    // case 'settings':
+    //   renderSettings(document.getElementById('page-settings'));
+    //   break;
   }
 }
 
