@@ -124,13 +124,7 @@ export function renderSettings(container) {
       ` : ''}
 
       <div class="settings-card">
-        <div class="settings-card-title">🎨 Giao diện</div>
-        <div style="display:flex; gap:8px;">
-          <button class="btn btn-secondary" id="themeDarkBtn">🌙 Tối</button>
-          <button class="btn btn-secondary" id="themeLightBtn">☀️ Sáng</button>
-        </div>
-
-        <div style="margin-top: 24px;">
+        <div>
           <div class="settings-card-title">ℹ️ Thông tin</div>
           <p style="font-size:13px; color:var(--text-secondary); line-height:1.8;">
             <strong>KPI Tracker v2.0</strong><br>
@@ -255,18 +249,6 @@ export function renderSettings(container) {
     });
   }
 
-  // Theme toggles
-  document.getElementById('themeDarkBtn').addEventListener('click', () => {
-    document.documentElement.setAttribute('data-theme', 'dark');
-    document.getElementById('themeToggle').textContent = '🌙';
-    showToast('Đã chuyển sang giao diện tối');
-  });
-
-  document.getElementById('themeLightBtn').addEventListener('click', () => {
-    document.documentElement.setAttribute('data-theme', 'light');
-    document.getElementById('themeToggle').textContent = '☀️';
-    showToast('Đã chuyển sang giao diện sáng');
-  });
 }
 
 function showToast(message) {

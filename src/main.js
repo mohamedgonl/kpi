@@ -3,7 +3,7 @@
  * Hash-based tab routing, event delegation, cloud sync init, periodic 6 PM check
  */
 import './styles/main.css';
-import { getUsers, getSettings, saveSettings, getLoggedInUser, setLoggedInUser, initCloudSync, isCloudSyncActive } from './data/store.js';
+import { getUsers, getLoggedInUser, setLoggedInUser, initCloudSync, isCloudSyncActive } from './data/store.js';
 import { renderDashboard } from './components/dashboard.js';
 import { renderReports } from './components/reports.js';
 import { renderSettings } from './components/settings.js';
@@ -56,12 +56,7 @@ async function init() {
     }
   });
 
-  // Load settings
-  const settings = getSettings();
-  if (settings.theme) {
-    document.documentElement.setAttribute('data-theme', settings.theme);
-    document.getElementById('themeToggle').textContent = settings.theme === 'dark' ? '🌙' : '☀️';
-  }
+  // Light theme is forced via index.html (data-theme="light"). No runtime switching.
 
   // Bind Auth Events
   document.getElementById('loginBtn').addEventListener('click', () => {
@@ -89,16 +84,6 @@ async function init() {
     tab.addEventListener('click', () => {
       switchTab(tab.dataset.tab);
     });
-  });
-
-  // Bind theme toggle
-  document.getElementById('themeToggle').addEventListener('click', () => {
-    const html = document.documentElement;
-    const current = html.getAttribute('data-theme');
-    const next = current === 'dark' ? 'light' : 'dark';
-    html.setAttribute('data-theme', next);
-    document.getElementById('themeToggle').textContent = next === 'dark' ? '🌙' : '☀️';
-    saveSettings({ ...getSettings(), theme: next });
   });
 
   // Bind user selector
