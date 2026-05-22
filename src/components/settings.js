@@ -3,7 +3,7 @@
  * Edit user names, toggle theme, export/import data
  * Shows cloud sync and encryption status
  */
-import { getUsers, saveUsers, exportAllData, importAllData, getLoggedInUser, updateUserPassword, isCloudSyncActive, getWorkGroups, saveWorkGroups, getTasks, saveTasks } from '../data/store.js';
+import { getUsers, saveUsers, exportAllData, importAllData, getLoggedInUser, updateUserPassword, isCloudSyncActive, getWorkGroups, saveWorkGroups } from '../data/store.js';
 import { getEncryptionStatus } from '../data/encryption.js';
 
 export function renderSettings(container) {
@@ -105,7 +105,6 @@ export function renderSettings(container) {
           <button class="btn btn-primary btn-full" id="exportBtn">📤 Xuất dữ liệu (JSON)</button>
           <button class="btn btn-secondary btn-full" id="importBtn">📥 Nhập dữ liệu (JSON)</button>
           <input type="file" id="importFileInput" accept=".json" style="display:none" />
-          <button class="btn btn-secondary btn-full" id="resetBtn" style="color: #ef4444;">🗑️ Xóa dữ liệu công việc (Reset Data)</button>
         </div>
       </div>
 
@@ -222,15 +221,6 @@ export function renderSettings(container) {
         }
       };
       reader.readAsText(file);
-    });
-
-    // Reset
-    document.getElementById('resetBtn').addEventListener('click', () => {
-      if (confirm('⚠️ CẢNH BÁO: Hành động này chỉ xóa toàn bộ dữ liệu TASK (CÔNG VIỆC) đã nhập của tất cả mọi người. Tài khoản, mật khẩu, và cài đặt danh mục vẫn ĐƯỢC GIỮ NGUYÊN.\\n\\nBạn có CHẮC CHẮN muốn xóa toàn bộ công việc?')) {
-        saveTasks([]);
-        window.dispatchEvent(new CustomEvent('refreshDashboard'));
-        showToast('Đã xóa toàn bộ dữ liệu công việc!');
-      }
     });
 
     // Work Groups Editor
